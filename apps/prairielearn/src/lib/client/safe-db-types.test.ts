@@ -413,6 +413,7 @@ const minimalStaffAssessmentQuestion: z.input<typeof StaffAssessmentQuestionSche
   submission_score_array_averages: null,
   submission_score_array_variances: null,
   tries_per_variant: null,
+  preferences: null,
 };
 
 const minimalStaffEnrollment: z.input<typeof StaffEnrollmentSchema> = {
@@ -481,6 +482,7 @@ const minimalStaffQuestion: z.input<typeof StaffQuestionSchema> = {
   workspace_image: null,
   workspace_port: null,
   workspace_url_rewrite: null,
+  preferences_schema: null,
 };
 
 const minimalStaffTag: z.input<typeof StaffTagSchema> = {
