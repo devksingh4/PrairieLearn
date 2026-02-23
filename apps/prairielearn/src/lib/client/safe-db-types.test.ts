@@ -404,6 +404,7 @@ const minimalStaffAssessmentQuestion: z.input<typeof StaffAssessmentQuestionSche
   number_submissions_hist: null,
   number_submissions_variance: null,
   points_list: null,
+  preferences: null,
   question_id: '8',
   question_score_variance: null,
   quintile_question_scores: null,
@@ -413,7 +414,6 @@ const minimalStaffAssessmentQuestion: z.input<typeof StaffAssessmentQuestionSche
   submission_score_array_averages: null,
   submission_score_array_variances: null,
   tries_per_variant: null,
-  preferences: null,
 };
 
 const minimalStaffEnrollment: z.input<typeof StaffEnrollmentSchema> = {
@@ -461,6 +461,7 @@ const minimalStaffQuestion: z.input<typeof StaffQuestionSchema> = {
   number: null,
   options: null,
   partial_credit: null,
+  preferences_schema: null,
   qid: null,
   share_publicly: false,
   share_source_publicly: false,
@@ -482,7 +483,6 @@ const minimalStaffQuestion: z.input<typeof StaffQuestionSchema> = {
   workspace_image: null,
   workspace_port: null,
   workspace_url_rewrite: null,
-  preferences_schema: null,
 };
 
 const minimalStaffTag: z.input<typeof StaffTagSchema> = {
