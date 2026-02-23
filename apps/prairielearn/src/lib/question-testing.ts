@@ -339,10 +339,10 @@ async function testQuestion(
   const client_fingerprint_id = null;
   const generateStart = Date.now();
   try {
-    variant = await ensureVariant(
-      question.id,
+    variant = await ensureVariant({
+      question_id: question.id,
       instance_question_id,
-      authn_user_id,
+      user_id: authn_user_id,
       authn_user_id,
       course_instance,
       variant_course,
@@ -350,8 +350,8 @@ async function testQuestion(
       options,
       require_open,
       client_fingerprint_id,
-      null, // assessment_id
-    );
+      assessment_id: null,
+    });
   } finally {
     const generateEnd = Date.now();
     generateDuration = generateEnd - generateStart;

@@ -466,19 +466,19 @@ export async function getAndRenderVariant(
       const require_open = !!locals.assessment && locals.assessment.type !== 'Exam';
       const instance_question_id = locals.instance_question?.id ?? null;
       const options = { variant_seed };
-      return await ensureVariant(
-        locals.question.id,
+      return await ensureVariant({
+        question_id: locals.question.id,
         instance_question_id,
-        locals.user.id,
-        locals.authn_user.id,
-        locals.course_instance ?? null,
-        locals.course,
+        user_id: locals.user.id,
+        authn_user_id: locals.authn_user.id,
+        course_instance: locals.course_instance ?? null,
+        variant_course: locals.course,
         question_course,
         options,
         require_open,
-        locals.client_fingerprint_id ?? null,
-        locals.assessment?.id ?? null,
-      );
+        client_fingerprint_id: locals.client_fingerprint_id ?? null,
+        assessment_id: locals.assessment?.id ?? null,
+      });
     }
   });
 
