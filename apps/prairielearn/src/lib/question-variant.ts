@@ -47,6 +47,7 @@ interface VariantCreationData {
   params: Record<string, any>;
   true_answer: Record<string, any>;
   options: Record<string, any>;
+  preferences: QuestionPreferenceDefinition;
   broken: boolean;
 }
 
@@ -74,24 +75,24 @@ function extractDefaultPreferences(
 
 /**
  * Internal function, do not call directly. Create a variant object, do not write to DB.
- * @param question - The question for the variant.
- * @param course - The course for the question.
- * @param options - Options controlling the creation.
- * @param options.variant_seed - The seed for the variant.
- * @param preferences - The merged preferences for this question instance (defaults merged with assessment overrides).
  */
-export async function makeVariant(
-  question: Question,
-  course: Course,
-  options: { variant_seed?: string | null },
-  preferences: Record<string, string | number | boolean> = {},
-): Promise<{
+export async function makeVariant({
+  question,
+  course,
+  variant_seed: variant_seed_option,
+  preferences = {},
+}: {
+  question: Question;
+  course: Course;
+  variant_seed?: string | null;
+  preferences?: Record<string, string | number | boolean>;
+}): Promise<{
   courseIssues: (Error & { fatal?: boolean; data?: any })[];
   variant: VariantCreationData;
 }> {
   let variant_seed: string;
-  if (options.variant_seed != null) {
-    variant_seed = options.variant_seed;
+  if (variant_seed_option != null) {
+    variant_seed = variant_seed_option;
   } else {
     variant_seed = Math.floor(Math.random() * 2 ** 32).toString(36);
   }
@@ -108,7 +109,8 @@ export async function makeVariant(
     variant_seed,
     params: data.params || {},
     true_answer: data.true_answer || {},
-    options: { ...data.options, preferences },
+    options: data.options || {},
+    preferences,
     broken: hasFatalIssue,
   };
 
@@ -139,6 +141,7 @@ export async function makeVariant(
       true_answer: data.true_answer,
       options: { ...data.options, preferences },
       broken: hasFatalIssue,
+      preferences,
     };
   }
 
@@ -274,12 +277,12 @@ async function makeAndInsertVariant(
     }
   }
 
-  const { courseIssues, variant: variantData } = await makeVariant(
+  const { courseIssues, variant: variantData } = await makeVariant({
     question,
-    question_course,
-    options,
+    course: question_course,
+    variant_seed: options.variant_seed,
     preferences,
-  );
+  });
 
   const variant = await sqldb.runInTransactionAsync(async () => {
     let real_user_id: string | null = user_id;

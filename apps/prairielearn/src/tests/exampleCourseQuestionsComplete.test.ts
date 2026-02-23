@@ -306,14 +306,12 @@ describe('Internally graded question lifecycle tests', { timeout: 60_000 }, func
       }
 
       // Prepare and generate
-      const { courseIssues: prepareGenerateIssues, variant: rawVariant } = await makeVariant(
+      const { courseIssues: prepareGenerateIssues, variant: rawVariant } = await makeVariant({
         question,
         course,
-        {
-          variant_seed: null,
-        },
+        variant_seed: null,
         preferences,
-      );
+      });
       assert.isEmpty(prepareGenerateIssues, 'Prepare/Generate should not produce any issues');
 
       const variant = rawVariant as Variant;
