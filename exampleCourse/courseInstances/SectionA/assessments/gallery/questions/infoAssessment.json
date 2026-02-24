@@ -53,14 +53,6 @@
             "gravitational_constant": 13,
             "fired_object": "bowling ball"
           }
-        },
-        {
-          "id": "@testCourse/sharedWithPreferences",
-          "points": 2,
-          "preferences": {
-            "gravitational_constant": 15,
-            "fired_object": "cannon ball"
-          }
         }
       ]
     }

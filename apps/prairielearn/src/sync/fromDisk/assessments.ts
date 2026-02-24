@@ -9,6 +9,7 @@ import { IdSchema } from '@prairielearn/zod';
 import { config } from '../../lib/config.js';
 import { SprocSyncAssessmentsSchema } from '../../lib/db-types.js';
 import { features } from '../../lib/features/index.js';
+import { extractDefaultPreferences } from '../../lib/question-preferences.js';
 import {
   type AssessmentJson,
   type QuestionAlternativeJson,
@@ -44,7 +45,7 @@ interface MergePreferencesResult {
  * @param overrides - The instructor's preferences overrides (from infoAssessment.json)
  * @returns The merged preferences and any validation errors
  */
-function mergeAndValidatePreferences(
+export function mergeAndValidatePreferences(
   qid: string,
   schema: QuestionParameterJson | null | undefined,
   overrides: QuestionPreferences | undefined,
@@ -61,19 +62,14 @@ function mergeAndValidatePreferences(
     return { preferences: {}, errors };
   }
 
-  // Extract defaults from schema
-  const merged: QuestionPreferences = {};
-  for (const [key, prop] of Object.entries(schema)) {
-    merged[key] = prop.default;
-  }
-
-  // Merge overrides into defaults
-  if (overrides) {
-    Object.assign(merged, overrides);
-  }
+  const merged: QuestionPreferences = { ...extractDefaultPreferences(schema), ...overrides };
 
   // Validate merged preferences against the JSON schema using AJV
-  const validate = ajv.compile({ type: 'object', properties: schema });
+  const validate = ajv.compile({
+    type: 'object',
+    properties: schema,
+    additionalProperties: false,
+  });
   const valid = validate(merged);
 
   if (!valid && validate.errors) {
@@ -342,19 +338,19 @@ function getParamsForAssessment(
         assessmentQuestionNumber++;
         const questionId = questionIds[alternative.qid];
 
-        // Validate preferences overrides against schema (if available)
-        // We only store the overrides here; defaults are merged at runtime
-
+        let mergedPreferences: QuestionPreferences | null = null;
         if (questionId !== undefined) {
           const preferencesSchema = getPreferencesSchema(alternative.qid);
-          const { errors: preferenceErrors } = mergeAndValidatePreferences(
+          const { preferences: merged, errors: preferenceErrors } = mergeAndValidatePreferences(
             alternative.qid,
             preferencesSchema,
             alternative.preferences,
           );
-          // Record any validation errors
           for (const error of preferenceErrors) {
             infofile.addError(assessmentInfoFile, error);
+          }
+          if (preferencesSchema) {
+            mergedPreferences = merged;
           }
         }
 
@@ -393,7 +389,7 @@ function getParamsForAssessment(
           json_max_points: alternative.jsonMaxPoints,
           json_max_auto_points: alternative.jsonMaxAutoPoints,
           json_tries_per_variant: alternative.jsonTriesPerVariant,
-          preferences: alternative.preferences ?? {},
+          preferences: mergedPreferences,
         };
       });
 
@@ -427,6 +423,9 @@ function getParamsForAssessment(
     maximum: role.maxMembers,
     can_assign_roles: groups.rolePermissions.canAssignRoles.includes(role.name),
   }));
+
+  // If any errors were added during zone/question processing treat as error.
+  if (infofile.hasErrors(assessmentInfoFile)) return null;
 
   return {
     type: assessment.type,
@@ -581,12 +580,15 @@ export async function sync(
   }
 
   const assessmentParams = Object.entries(assessments).map(([tid, assessment]) => {
+    // getParamsForAssessment must be called before stringifyErrors/stringifyWarnings so
+    // that any errors it adds to the infofile are captured in the serialized output.
+    const params = getParamsForAssessment(assessment, questionIds, questions, sharedQuestionPreferences);
     return JSON.stringify([
       tid,
       assessment.uuid,
       infofile.stringifyErrors(assessment),
       infofile.stringifyWarnings(assessment),
-      getParamsForAssessment(assessment, questionIds, questions, sharedQuestionPreferences),
+      params,
     ]);
   });
 

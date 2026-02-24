@@ -25,6 +25,7 @@ import { idsEqual } from '../lib/id.js';
 import { isEnterprise } from '../lib/license.js';
 import * as markdown from '../lib/markdown.js';
 import { APP_ROOT_PATH } from '../lib/paths.js';
+import { extractDefaultPreferences } from '../lib/question-preferences.js';
 import type { UntypedResLocals } from '../lib/res-locals.types.js';
 import { getOrUpdateCourseCommitHash } from '../models/course.js';
 import {
@@ -79,7 +80,7 @@ type ElementNameMap = Record<
 
 /**
  * Extracts preferences from variant options or question schema.
- * For phases with a variant, preferences come from variant.options.preferences.
+ * For phases with a variant, preferences come from variant.preferences.
  * For generate phase, preferences come from question.preferences_schema defaults.
  */
 export function getPreferences({
@@ -89,14 +90,7 @@ export function getPreferences({
   preferences?: Record<string, string | number | boolean> | null;
   preferencesSchema?: Record<string, { default: string | number | boolean }> | null;
 }): Record<string, string | number | boolean> {
-  const defaults: Record<string, string | number | boolean> = {};
-  if (preferencesSchema) {
-    for (const [key, prop] of Object.entries(preferencesSchema)) {
-      defaults[key] = prop.default;
-    }
-  }
-
-  return { ...defaults, ...preferences };
+  return { ...extractDefaultPreferences(preferencesSchema), ...preferences };
 }
 
 // Maps core element names to element info
@@ -900,9 +894,7 @@ export async function prepare(
       variant_seed: Number.parseInt(variant.variant_seed, 36),
       options: { ...variant.options, ...getContextOptions(context) },
       preferences: getPreferences({
-        preferences: variant.options?.preferences as
-          | Record<string, string | number | boolean>
-          | undefined,
+        preferences: variant.preferences ?? undefined,
       }),
       answers_names: {},
     } satisfies ExecutionData;
@@ -1026,9 +1018,7 @@ async function renderPanel({
     variant_seed: Number.parseInt(variant.variant_seed, 36),
     options,
     preferences: getPreferences({
-      preferences: variant.options?.preferences as
-        | Record<string, string | number | boolean>
-        | undefined,
+      preferences: variant.preferences ?? undefined,
     }),
     raw_submitted_answers: submission?.raw_submitted_answer ?? {},
     editable: !!(
@@ -1569,9 +1559,7 @@ export async function file(
       variant_seed: Number.parseInt(variant.variant_seed, 36),
       options: { ...variant.options, ...getContextOptions(context) },
       preferences: getPreferences({
-        preferences: variant.options?.preferences as
-          | Record<string, string | number | boolean>
-          | undefined,
+        preferences: variant.preferences ?? undefined,
       }),
       filename,
     } satisfies ExecutionData;
@@ -1628,9 +1616,7 @@ export async function parse(
       variant_seed: Number.parseInt(variant.variant_seed, 36),
       options: { ...variant.options, ...getContextOptions(context) },
       preferences: getPreferences({
-        preferences: variant.options?.preferences as
-          | Record<string, string | number | boolean>
-          | undefined,
+        preferences: variant.preferences ?? undefined,
       }),
       raw_submitted_answers: submission.raw_submitted_answer ?? {},
       gradable: submission.gradable ?? true,
@@ -1689,9 +1675,7 @@ export async function grade(
       variant_seed: Number.parseInt(variant.variant_seed, 36),
       options: { ...variant.options, ...getContextOptions(context) },
       preferences: getPreferences({
-        preferences: variant.options?.preferences as
-          | Record<string, string | number | boolean>
-          | undefined,
+        preferences: variant.preferences ?? undefined,
       }),
       raw_submitted_answers: submission.raw_submitted_answer ?? {},
       gradable: submission.gradable ?? true,
@@ -1748,9 +1732,7 @@ export async function test(
       variant_seed: Number.parseInt(variant.variant_seed, 36),
       options: { ...variant.options, ...getContextOptions(context) },
       preferences: getPreferences({
-        preferences: variant.options?.preferences as
-          | Record<string, string | number | boolean>
-          | undefined,
+        preferences: variant.preferences ?? undefined,
       }),
       raw_submitted_answers: {},
       gradable: true as boolean,

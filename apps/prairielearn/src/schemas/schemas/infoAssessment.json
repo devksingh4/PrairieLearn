@@ -503,7 +503,7 @@
           "default": []
         },
         "preferences": {
-          "description": "The parameters passed to the question to customize its behavior.",
+          "description": "The preferences passed to the question to customize its behavior.",
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/QuestionAlternativeJsonSchema/properties/preferences/additionalProperties"
@@ -566,7 +566,7 @@
           "type": "boolean"
         },
         "preferences": {
-          "description": "The parameters passed to the question to customize its behavior.",
+          "description": "The preferences passed to the question to customize its behavior.",
           "type": "object",
           "additionalProperties": {
             "type": ["string", "number", "boolean"]

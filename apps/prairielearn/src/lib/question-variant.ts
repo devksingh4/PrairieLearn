@@ -22,6 +22,7 @@ import {
 } from './db-types.js';
 import { idsEqual } from './id.js';
 import { writeCourseIssues } from './issues.js';
+import { extractDefaultPreferences } from './question-preferences.js';
 
 const sql = sqldb.loadSqlEquiv(import.meta.url);
 
@@ -49,28 +50,6 @@ interface VariantCreationData {
   options: Record<string, any>;
   preferences: QuestionPreferenceDefinition;
   broken: boolean;
-}
-
-/**
- * Extracts default preference values from a question's preferences schema.
- * @param preferencesSchema - The JSON schema defining preferences (from question.preferences_schema)
- * @returns An object with default values for each preference key
- */
-function extractDefaultPreferences(
-  preferencesSchema: Record<string, unknown> | null,
-): Record<string, string | number | boolean> {
-  if (!preferencesSchema) return {};
-
-  const properties = preferencesSchema as
-    | Record<string, { default: string | number | boolean }>
-    | undefined;
-  if (!properties) return {};
-
-  const defaults: Record<string, string | number | boolean> = {};
-  for (const [key, prop] of Object.entries(properties)) {
-    defaults[key] = prop.default;
-  }
-  return defaults;
 }
 
 /**
@@ -139,7 +118,7 @@ export async function makeVariant({
       variant_seed,
       params: data.params,
       true_answer: data.true_answer,
-      options: { ...data.options, preferences },
+      options: data.options || {},
       broken: hasFatalIssue,
       preferences,
     };
@@ -247,6 +226,7 @@ async function selectVariantForInstanceQuestion(
  * @param params.options.variant_seed - The seed for the variant.
  * @param params.require_open - If true, only use an existing variant if it is open.
  * @param params.client_fingerprint_id - The client fingerprint for this variant.
+ * @param params.assessment_id - The assessment for the new variant. Can be null.
  */
 async function makeAndInsertVariant({
   question_id,
@@ -259,6 +239,7 @@ async function makeAndInsertVariant({
   options,
   require_open,
   client_fingerprint_id,
+  assessment_id,
 }: {
   question_id: string | null;
   instance_question_id: string | null;
@@ -270,12 +251,14 @@ async function makeAndInsertVariant({
   options: { variant_seed?: string | null };
   require_open: boolean;
   client_fingerprint_id: string | null;
+  assessment_id: string | null;
 }): Promise<VariantWithFormattedDate> {
   const question = await selectQuestion(question_id, instance_question_id);
 
   // Look up preferences for this question instance
-  const defaults = extractDefaultPreferences(question.preferences_schema);
-  let preferences: QuestionPreferenceDefinition = { ...defaults };
+  let preferences: QuestionPreferenceDefinition = extractDefaultPreferences(
+    question.preferences_schema,
+  );
 
   if (assessment_id && question_id) {
     const result = await sqldb.queryOptionalRow(
@@ -284,7 +267,7 @@ async function makeAndInsertVariant({
       QuestionPreferenceDefinitionSchema.nullish(),
     );
     if (result) {
-      preferences = { ...defaults, ...result };
+      preferences = result;
     }
   }
 
@@ -458,7 +441,7 @@ export async function ensureVariant({
     require_open,
     client_fingerprint_id,
     assessment_id,
-  );
+  });
 }
 
 /**

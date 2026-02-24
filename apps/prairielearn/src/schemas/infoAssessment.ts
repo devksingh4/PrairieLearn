@@ -242,7 +242,7 @@ export const QuestionAlternativeJsonSchema = QuestionPointsJsonSchema.extend({
     )
     .optional(),
   preferences: QuestionPreferencesJsonSchema.describe(
-    'The parameters passed to the question to customize its behavior.',
+    'The preferences passed to the question to customize its behavior.',
   ).optional(),
 });
 
@@ -303,7 +303,7 @@ export const ZoneQuestionBlockJsonSchema = QuestionPointsJsonSchema.extend({
     .optional()
     .default([]),
   preferences: QuestionPreferencesJsonSchema.describe(
-    'The parameters passed to the question to customize its behavior.',
+    'The preferences passed to the question to customize its behavior.',
   ).optional(),
 });
 
