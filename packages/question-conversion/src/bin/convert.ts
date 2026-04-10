@@ -91,6 +91,12 @@ async function resolveTimezone(courseDir: string, flagValue?: string): Promise<s
   process.exit(1);
 }
 
+const NON_QTI_XML_FILES = new Set(['assessment_meta.xml', 'imsmanifest.xml']);
+
+function isQtiXml(filename: string): boolean {
+  return filename.endsWith('.xml') && !NON_QTI_XML_FILES.has(filename);
+}
+
 /**
  * Find QTI XML files in a directory. Handles two cases:
  * - The directory itself contains a QTI XML (single quiz dir)
@@ -100,9 +106,7 @@ async function findQtiXmlFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir);
 
   // Check if the directory itself contains a QTI XML (not a manifest)
-  const directXml = entries.find(
-    (f) => f.endsWith('.xml') && f !== 'assessment_meta.xml' && f !== 'imsmanifest.xml',
-  );
+  const directXml = entries.find(isQtiXml);
   if (directXml) {
     return [path.join(dir, directXml)];
   }
@@ -114,7 +118,7 @@ async function findQtiXmlFiles(dir: string): Promise<string[]> {
     const entryStat = await stat(entryPath);
     if (entryStat.isDirectory()) {
       const subEntries = await readdir(entryPath);
-      const xml = subEntries.find((f) => f.endsWith('.xml') && f !== 'assessment_meta.xml');
+      const xml = subEntries.find(isQtiXml);
       if (xml) {
         xmlFiles.push(path.join(entryPath, xml));
       }

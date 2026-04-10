@@ -390,4 +390,62 @@ describe('PLEmitter', () => {
       assert.equal(result.questions.length, 1);
     });
   });
+
+  describe('sourceId on PLQuestionOutput', () => {
+    it('populates sourceId on each emitted question', () => {
+      const q1 = makeQuestion({ sourceId: 'q-abc' });
+      const q2 = makeQuestion({ sourceId: 'q-xyz', title: 'Another Question' });
+      const result = emitter.emit(makeAssessment([q1, q2]));
+      assert.equal(result.questions[0].sourceId, 'q-abc');
+      assert.equal(result.questions[1].sourceId, 'q-xyz');
+    });
+  });
+
+  describe('emission failure resilience', () => {
+    function makeBadQuestion(overrides: Partial<IRQuestion> = {}): IRQuestion {
+      // Cast to IRQuestion with an unsupported body type to force emitQuestion to throw
+      return makeQuestion({
+        ...overrides,
+        body: { type: 'unsupported-type' } as unknown as IRQuestion['body'],
+      });
+    }
+
+    it('emits a warning and excludes the failed question', () => {
+      const bad = makeBadQuestion({ sourceId: 'bad-q' });
+      const good = makeQuestion({ sourceId: 'good-q', title: 'Good Question' });
+      const result = emitter.emit(makeAssessment([bad, good]));
+      assert.equal(result.questions.length, 1);
+      assert.equal(result.questions[0].sourceId, 'good-q');
+      assert.equal(result.warnings.length, 1);
+      assert.equal(result.warnings[0].questionId, 'bad-q');
+    });
+
+    it('assigns correct autoPoints in single-zone fallback when first question fails', () => {
+      const bad = makeBadQuestion({ sourceId: 'bad-q', points: 5 });
+      const good = makeQuestion({ sourceId: 'good-q', title: 'Good Question', points: 10 });
+      const result = emitter.emit(makeAssessment([bad, good]));
+      const zones = result.assessment.infoJson.zones;
+      assert.equal(zones.length, 1);
+      assert.equal(zones[0].questions.length, 1);
+      // autoPoints must come from the good question (10), not the bad question (5)
+      assert.equal(zones[0].questions[0].autoPoints, 10);
+    });
+
+    it('maps zone questions correctly when first question fails', () => {
+      const bad = makeBadQuestion({ sourceId: 'bad-q' });
+      const good = makeQuestion({ sourceId: 'good-q', title: 'Good Question', points: 7 });
+      const assessment: IRAssessment = {
+        sourceId: 'a1',
+        title: 'Test',
+        questions: [bad, good],
+        zones: [{ title: 'Part 1', questions: [bad, good] }],
+      };
+      const result = emitter.emit(assessment);
+      const zoneQs = result.assessment.infoJson.zones[0].questions;
+      // Only the good question should appear in the zone
+      assert.equal(zoneQs.length, 1);
+      assert.equal(zoneQs[0].id, result.questions[0].directoryName);
+      assert.equal(zoneQs[0].autoPoints, 7);
+    });
+  });
 });

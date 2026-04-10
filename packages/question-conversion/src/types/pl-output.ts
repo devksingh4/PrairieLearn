@@ -13,6 +13,8 @@ export interface PLQuestionInfoJson {
 export interface PLQuestionOutput {
   /** Directory name relative to the questions folder (e.g. "imported/hw1/q1"). */
   directoryName: string;
+  /** Source ID of the original IR question, used to correlate back to assessment.questions. */
+  sourceId: string;
   infoJson: PLQuestionInfoJson;
   questionHtml: string;
   serverPy?: string;

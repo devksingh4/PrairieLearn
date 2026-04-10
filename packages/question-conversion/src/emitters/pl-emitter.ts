@@ -56,21 +56,14 @@ export class PLEmitter implements OutputEmitter {
 
     const uuid = stableUuid(assessment.sourceId, 'assessment');
 
-    // Build a lookup from sourceId → question directoryName
-    const questionDirByIndex = new Map<number, string>();
-    for (let i = 0; i < assessment.questions.length; i++) {
-      if (i < questions.length) {
-        questionDirByIndex.set(i, questions[i].directoryName);
-      }
-    }
-
-    // Also build a lookup by sourceId for zone-based matching
-    const questionDirBySourceId = new Map<string, string>();
-    for (let i = 0; i < assessment.questions.length; i++) {
-      if (i < questions.length) {
-        questionDirBySourceId.set(assessment.questions[i].sourceId, questions[i].directoryName);
-      }
-    }
+    // Build lookups keyed by sourceId from the actually-emitted questions.
+    // Using sourceId (not index) avoids misalignment when some questions fail to emit.
+    const questionDirBySourceId = new Map<string, string>(
+      questions.map((q) => [q.sourceId, q.directoryName]),
+    );
+    const questionBySourceId = new Map<string, IRQuestion>(
+      assessment.questions.map((q) => [q.sourceId, q]),
+    );
 
     // Build zones
     const zones: PLAssessmentZone[] = [];
@@ -83,9 +76,9 @@ export class PLEmitter implements OutputEmitter {
       }
     } else {
       // Single zone with all questions
-      const zoneQuestions: PLAssessmentQuestion[] = questions.map((q, i) => ({
+      const zoneQuestions: PLAssessmentQuestion[] = questions.map((q) => ({
         id: prefix ? `${prefix}/${q.directoryName}` : q.directoryName,
-        autoPoints: assessment.questions[i]?.points,
+        autoPoints: questionBySourceId.get(q.sourceId)?.points,
       }));
       zones.push({ title: 'Questions', questions: zoneQuestions });
     }
@@ -232,6 +225,7 @@ export class PLEmitter implements OutputEmitter {
 
     return {
       directoryName,
+      sourceId: question.sourceId,
       infoJson,
       questionHtml,
       serverPy: serverPy || undefined,
@@ -290,6 +284,9 @@ export class PLEmitter implements OutputEmitter {
         return '<pl-rich-text-editor answers-name="answer"></pl-rich-text-editor>';
       case 'text-only':
         return '';
+      default: {
+        throw new Error(`Unhandled body type: ${(body as IRQuestionBody).type}`);
+      }
     }
   }
 
