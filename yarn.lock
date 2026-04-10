@@ -5496,12 +5496,14 @@ __metadata:
   dependencies:
     "@prairielearn/logger": "workspace:^"
     "@prairielearn/tsconfig": "workspace:^"
+    "@types/mime-types": "npm:^3"
     "@types/node": "npm:^24.12.2"
     "@types/uuid": "npm:^11.0.0"
     "@typescript/native-preview": "npm:^7.0.0-dev.20260305.1"
     "@vitest/coverage-v8": "npm:^4.1.2"
     commander: "npm:^14.0.3"
     fast-xml-parser: "npm:^5.2.0"
+    mime-types: "npm:^3.0.2"
     source-map-support: "npm:^0.5.21"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
@@ -9788,6 +9790,13 @@ __metadata:
   dependencies:
     "@types/node": "npm:*"
   checksum: 10c0/cffe4fa28571dd8ca32f4ef5ce09d0b2cd27ecf72b1185b47077a5a5f4b98a71821230f26ccc05ded24c9c81df91a6c04e65921cd959c48c9bce78865cd0b606
+  languageName: node
+  linkType: hard
+
+"@types/mime-types@npm:^3":
+  version: 3.0.1
+  resolution: "@types/mime-types@npm:3.0.1"
+  checksum: 10c0/61c2056529dc5bc73c25b2a053e21f063fd547c21e12a2be94ca78b89b0f83c9a75afed9a8bda3c78592ee880acc82778302651527f7882cf5ba8e58ab320e29
   languageName: node
   linkType: hard
 
@@ -17593,12 +17602,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"mime-db@npm:^1.54.0":
+  version: 1.54.0
+  resolution: "mime-db@npm:1.54.0"
+  checksum: 10c0/8d907917bc2a90fa2df842cdf5dfeaf509adc15fe0531e07bb2f6ab15992416479015828d6a74200041c492e42cce3ebf78e5ce714388a0a538ea9c53eece284
+  languageName: node
+  linkType: hard
+
 "mime-types@npm:^2.1.12, mime-types@npm:^2.1.18, mime-types@npm:~2.1.24, mime-types@npm:~2.1.34":
   version: 2.1.35
   resolution: "mime-types@npm:2.1.35"
   dependencies:
     mime-db: "npm:1.52.0"
   checksum: 10c0/82fb07ec56d8ff1fc999a84f2f217aa46cb6ed1033fefaabd5785b9a974ed225c90dc72fff460259e66b95b73648596dbcc50d51ed69cdf464af2d237d3149b2
+  languageName: node
+  linkType: hard
+
+"mime-types@npm:^3.0.2":
+  version: 3.0.2
+  resolution: "mime-types@npm:3.0.2"
+  dependencies:
+    mime-db: "npm:^1.54.0"
+  checksum: 10c0/35a0dd1035d14d185664f346efcdb72e93ef7a9b6e9ae808bd1f6358227010267fab52657b37562c80fc888ff76becb2b2938deb5e730818b7983bf8bd359767
   languageName: node
   linkType: hard
 

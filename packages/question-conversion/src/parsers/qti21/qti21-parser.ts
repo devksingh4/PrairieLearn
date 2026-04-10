@@ -1,3 +1,5 @@
+import { lookup as mimeLookup } from 'mime-types';
+
 import { createQTI21Registry } from '../../transforms/qti21/index.js';
 import type { TransformRegistry } from '../../transforms/transform-registry.js';
 import type { AssetReference, IRAssessment, IRQuestion } from '../../types/ir.js';
@@ -325,7 +327,7 @@ export class QTI21Parser implements InputParser {
       assets.set(filename, {
         type: 'base64',
         value: buffer.toString('base64'),
-        contentType: `image/${filename.split('.').pop()}`,
+        contentType: mimeLookup(filename) || 'application/octet-stream',
       });
     }
     if (result.assets) {

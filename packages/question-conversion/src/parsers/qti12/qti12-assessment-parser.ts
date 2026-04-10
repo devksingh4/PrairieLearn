@@ -1,3 +1,5 @@
+import { lookup as mimeLookup } from 'mime-types';
+
 import { createQTI12Registry } from '../../transforms/qti12/index.js';
 import type { TransformRegistry } from '../../transforms/transform-registry.js';
 import type {
@@ -509,7 +511,7 @@ export class QTI12AssessmentParser implements InputParser {
       assets.set(filename, {
         type: 'base64',
         value: buffer.toString('base64'),
-        contentType: `image/${filename.split('.').pop()}`,
+        contentType: mimeLookup(filename) || 'application/octet-stream',
       });
     }
     if (result.assets) {

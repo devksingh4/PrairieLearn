@@ -24,10 +24,12 @@
     "@prairielearn/logger": "workspace:^",
     "commander": "^14.0.3",
     "fast-xml-parser": "^5.2.0",
+    "mime-types": "^3.0.2",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@prairielearn/tsconfig": "workspace:^",
+    "@types/mime-types": "^3",
     "@types/node": "^24.12.2",
     "@types/uuid": "^11.0.0",
     "@typescript/native-preview": "^7.0.0-dev.20260305.1",
