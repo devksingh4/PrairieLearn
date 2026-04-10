@@ -13,14 +13,21 @@ export const orderInteractionHandler: TransformHandler<QTI21ParsedItem> = {
     const correctResponse = item.correctResponses.find(
       (r) => r.responseIdentifier === interaction.responseIdentifier,
     );
+    if (!correctResponse) {
+      throw new Error(
+        `Item "${item.identifier}" has no correctResponse for "${interaction.responseIdentifier}"`,
+      );
+    }
 
     const choiceMap = new Map(interaction.choices.map((c) => [c.identifier, c.html]));
 
-    // Build the correct order from the response values
-    const correctOrder = (correctResponse?.values ?? []).map((id) => ({
-      id,
-      html: choiceMap.get(id) ?? id,
-    }));
+    const correctOrder = correctResponse.values.map((id) => {
+      const html = choiceMap.get(id);
+      if (!html) {
+        throw new Error(`Item "${item.identifier}" references unknown order choice "${id}"`);
+      }
+      return { id, html };
+    });
 
     return { body: { type: 'ordering', correctOrder } };
   },
