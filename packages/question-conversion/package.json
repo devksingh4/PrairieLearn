@@ -22,8 +22,7 @@
   "dependencies": {
     "@prairielearn/logger": "workspace:^",
     "commander": "^14.0.3",
-    "fast-xml-parser": "^5.2.0",
-    "uuid": "^11.1.0"
+    "fast-xml-parser": "^5.2.0"
   },
   "devDependencies": {
     "@prairielearn/tsconfig": "workspace:^",
