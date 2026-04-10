@@ -77,7 +77,16 @@ export function resolveImsFileRefs(html: string): {
 
   const rewritten = html.replaceAll(IMS_CC_FILEBASE_RE, (_match, rawPath: string) => {
     const decodedPath = decodeURIComponent(rawPath);
-    const filename = decodedPath.split('/').pop() ?? decodedPath;
+    const base = decodedPath.split('/').pop() ?? decodedPath;
+    const dot = base.lastIndexOf('.');
+    const stem = dot >= 0 ? base.slice(0, dot) : base;
+    const ext = dot >= 0 ? base.slice(dot) : '';
+    let filename = base;
+    let suffix = 1;
+    while (fileRefs.has(filename) && fileRefs.get(filename) !== decodedPath) {
+      filename = `${stem}-${suffix}${ext}`;
+      suffix += 1;
+    }
     fileRefs.set(filename, decodedPath);
     return `clientFilesQuestion/${filename}`;
   });
