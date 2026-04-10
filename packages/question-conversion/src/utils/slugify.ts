@@ -5,7 +5,7 @@
 export function slugify(value: string): string {
   const cleaned = value
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replaceAll(/[^a-z0-9]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '');
   return cleaned || 'question';
 }

@@ -1,6 +1,7 @@
-import { describe, it, assert } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
 import type { QTI21ParsedItem } from '../../types/qti21.js';
+
 import { extendedTextInteractionHandler } from './extended-text-interaction.js';
 
 describe('extendedTextInteractionHandler', () => {
@@ -15,5 +16,7 @@ describe('extendedTextInteractionHandler', () => {
     };
     const result = extendedTextInteractionHandler.transform(item);
     assert.equal(result.body.type, 'rich-text');
+    if (result.body.type !== 'rich-text') return;
+    assert.equal(result.body.gradingMethod, 'Manual');
   });
 });

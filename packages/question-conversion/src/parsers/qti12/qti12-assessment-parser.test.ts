@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { describe, it, assert } from 'vitest';
+
+import { assert, describe, it } from 'vitest';
 
 import { QTI12AssessmentParser } from './qti12-assessment-parser.js';
 
@@ -47,8 +48,10 @@ describe('QTI12AssessmentParser', () => {
     it('cleans up prompt HTML', () => {
       const result = parser.parse(readFixture('canvas-mc.xml'));
       const q = result.questions[0];
-      assert.include(q.promptHtml, 'Which collision resolution');
-      assert.notInclude(q.promptHtml, '&lt;');
+      assert.equal(
+        q.promptHtml,
+        '<p>Which collision resolution method tries different sequences?</p>',
+      );
     });
   });
 
@@ -195,8 +198,8 @@ describe('QTI12AssessmentParser', () => {
       const m = result.meta!;
       assert.isTrue(m.shuffleAnswers);
       assert.equal(m.maxAttempts, -1);
-      assert.equal(m.pointsPossible, 5.0);
-      assert.include(m.descriptionHtml!, 'Do the work');
+      assert.equal(m.pointsPossible, 5);
+      assert.equal(m.descriptionHtml!, '<p>Do the work.</p>');
       assert.equal(m.lockDate, '2025-09-05T05:59:59');
       assert.equal(m.dueDate, '2025-09-04T23:59:59');
       assert.equal(m.startDate, '2025-09-01T00:00:00');
@@ -211,7 +214,7 @@ describe('QTI12AssessmentParser', () => {
       const m = result.meta!;
       assert.equal(m.timeLimitMinutes, 60);
       assert.equal(m.maxAttempts, 1);
-      assert.equal(m.pointsPossible, 20.0);
+      assert.equal(m.pointsPossible, 20);
       assert.isTrue(m.hideResults);
       assert.isFalse(m.showCorrectAnswers);
       assert.equal(m.ipFilter, '129.123.86.0/24,129.123.175.192/27');

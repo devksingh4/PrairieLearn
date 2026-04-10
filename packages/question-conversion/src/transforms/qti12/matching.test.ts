@@ -1,6 +1,7 @@
-import { describe, it, assert } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
 import type { QTI12ParsedItem } from '../../types/qti12.js';
+
 import { matchingHandler } from './matching.js';
 
 function makeItem(): QTI12ParsedItem {

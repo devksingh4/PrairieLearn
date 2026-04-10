@@ -1,4 +1,11 @@
-import type { IRAssessment, IRAssessmentMeta, IRChoice, IRQuestion, IRQuestionBody, IRZone } from '../types/ir.js';
+import type {
+  IRAssessment,
+  IRAssessmentMeta,
+  IRChoice,
+  IRQuestion,
+  IRQuestionBody,
+  IRZone,
+} from '../types/ir.js';
 import type {
   PLAllowAccessRule,
   PLAssessmentInfoJson,
@@ -10,6 +17,7 @@ import type {
 } from '../types/pl-output.js';
 import { slugify } from '../utils/slugify.js';
 import { stableUuid } from '../utils/uuid.js';
+
 import type { ConversionResult, ConversionWarning, EmitOptions, OutputEmitter } from './emitter.js';
 
 /** Emits PrairieLearn question directories and assessment config from IR. */
@@ -237,7 +245,7 @@ export class PLEmitter implements OutputEmitter {
     usedDirNames: Map<string, number>,
   ): string {
     const GENERIC_TITLES = /^(question|item|problem|unnamed)$/i;
-    const cleaned = title.replace(/\bquestion\b/gi, '').trim();
+    const cleaned = title.replaceAll(/\bquestion\b/gi, '').trim();
     const isGeneric = !cleaned || GENERIC_TITLES.test(title.trim());
 
     const baseDir = isGeneric ? `q${index + 1}` : slugify(cleaned);
@@ -247,12 +255,12 @@ export class PLEmitter implements OutputEmitter {
   }
 
   private renderQuestionHtml(question: IRQuestion): string {
-    const parts: string[] = [];
-
-    parts.push('<pl-question-panel>');
-    parts.push(question.promptHtml);
-    parts.push('</pl-question-panel>');
-    parts.push('');
+    const parts: string[] = [
+      '<pl-question-panel>',
+      question.promptHtml,
+      '</pl-question-panel>',
+      '',
+    ];
 
     const bodyHtml = this.renderBodyHtml(question.body);
     if (bodyHtml) {
@@ -273,9 +281,9 @@ export class PLEmitter implements OutputEmitter {
       case 'fill-in-blanks':
         return this.renderFillInBlanks(body);
       case 'numeric':
-        return `<pl-number-input answers-name="answer"></pl-number-input>`;
+        return '<pl-number-input answers-name="answer"></pl-number-input>';
       case 'string-input':
-        return `<pl-string-input answers-name="answer" remove-leading-trailing="true"></pl-string-input>`;
+        return '<pl-string-input answers-name="answer" remove-leading-trailing="true"></pl-string-input>';
       case 'ordering':
         return this.renderOrdering(body);
       case 'rich-text':
@@ -397,16 +405,16 @@ export class PLEmitter implements OutputEmitter {
 
 function escapeHtml(text: string): string {
   return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
 }
 
 function escapeAttr(text: string): string {
   return text
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
 }

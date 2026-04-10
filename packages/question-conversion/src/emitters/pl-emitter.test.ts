@@ -1,6 +1,7 @@
-import { describe, it, assert } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
 import type { IRAssessment, IRAssessmentMeta, IRQuestion } from '../types/ir.js';
+
 import { PLEmitter } from './pl-emitter.js';
 
 function makeAssessment(questions: IRQuestion[], meta?: IRAssessmentMeta): IRAssessment {
@@ -44,11 +45,10 @@ describe('PLEmitter', () => {
 
   it('generates multiple choice HTML', () => {
     const result = emitter.emit(makeAssessment([makeQuestion()]));
-    const html = result.questions[0].questionHtml;
-    assert.include(html, '<pl-question-panel>');
-    assert.include(html, '<pl-multiple-choice');
-    assert.include(html, 'correct="true"');
-    assert.include(html, 'Four');
+    assert.equal(
+      result.questions[0].questionHtml,
+      '<pl-question-panel>\n<p>What is 2+2?</p>\n</pl-question-panel>\n\n<pl-multiple-choice answers-name="answer" fixed-order="true">\n  <pl-answer correct="false">Three</pl-answer>\n  <pl-answer correct="true">Four</pl-answer>\n</pl-multiple-choice>',
+    );
   });
 
   it('generates checkbox HTML', () => {
@@ -62,7 +62,10 @@ describe('PLEmitter', () => {
       },
     });
     const result = emitter.emit(makeAssessment([q]));
-    assert.include(result.questions[0].questionHtml, '<pl-checkbox');
+    assert.equal(
+      result.questions[0].questionHtml,
+      '<pl-question-panel>\n<p>What is 2+2?</p>\n</pl-question-panel>\n\n<pl-checkbox answers-name="answer" fixed-order="true">\n  <pl-answer correct="true">A</pl-answer>\n  <pl-answer correct="false">B</pl-answer>\n</pl-checkbox>',
+    );
   });
 
   it('generates matching HTML', () => {
@@ -74,10 +77,10 @@ describe('PLEmitter', () => {
       },
     });
     const result = emitter.emit(makeAssessment([q]));
-    const html = result.questions[0].questionHtml;
-    assert.include(html, '<pl-matching');
-    assert.include(html, '<pl-statement');
-    assert.include(html, '<pl-option>');
+    assert.equal(
+      result.questions[0].questionHtml,
+      '<pl-question-panel>\n<p>What is 2+2?</p>\n</pl-question-panel>\n\n<pl-matching answers-name="answer">\n  <pl-statement match="Fe">Iron</pl-statement>\n  <pl-option>Au</pl-option>\n</pl-matching>',
+    );
   });
 
   it('generates fill-in-blanks HTML with server.py', () => {
@@ -88,12 +91,14 @@ describe('PLEmitter', () => {
       },
     });
     const result = emitter.emit(makeAssessment([q]));
-    const html = result.questions[0].questionHtml;
-    assert.include(html, '<pl-string-input');
-    assert.include(html, 'answers-name="capital1"');
-    assert.include(html, 'ignore-case="true"');
-    assert.isDefined(result.questions[0].serverPy);
-    assert.include(result.questions[0].serverPy!, 'bogota');
+    assert.equal(
+      result.questions[0].questionHtml,
+      '<pl-question-panel>\n<p>What is 2+2?</p>\n</pl-question-panel>\n\n<p><strong>capital1:</strong></p>\n<pl-string-input answers-name="capital1" remove-leading-trailing="true" ignore-case="true"></pl-string-input>',
+    );
+    assert.equal(
+      result.questions[0].serverPy,
+      'def generate(data):\n    data["correct_answers"]["capital1"] = "bogota"\n',
+    );
   });
 
   it('generates rich-text HTML with manual grading', () => {
@@ -101,17 +106,20 @@ describe('PLEmitter', () => {
       body: { type: 'rich-text', gradingMethod: 'Manual' },
     });
     const result = emitter.emit(makeAssessment([q]));
-    assert.include(result.questions[0].questionHtml, '<pl-rich-text-editor');
+    assert.equal(
+      result.questions[0].questionHtml,
+      '<pl-question-panel>\n<p>What is 2+2?</p>\n</pl-question-panel>\n\n<pl-rich-text-editor answers-name="answer"></pl-rich-text-editor>',
+    );
     assert.equal(result.questions[0].infoJson.gradingMethod, 'Manual');
   });
 
   it('generates text-only HTML without input element', () => {
     const q = makeQuestion({ body: { type: 'text-only' } });
     const result = emitter.emit(makeAssessment([q]));
-    const html = result.questions[0].questionHtml;
-    assert.include(html, '<pl-question-panel>');
-    assert.notInclude(html, '<pl-multiple-choice');
-    assert.notInclude(html, '<pl-string-input');
+    assert.equal(
+      result.questions[0].questionHtml,
+      '<pl-question-panel>\n<p>What is 2+2?</p>\n</pl-question-panel>\n',
+    );
   });
 
   it('generates server.py for string-input', () => {
@@ -119,8 +127,10 @@ describe('PLEmitter', () => {
       body: { type: 'string-input', correctAnswer: 'hello', ignoreCase: true },
     });
     const result = emitter.emit(makeAssessment([q]));
-    assert.isDefined(result.questions[0].serverPy);
-    assert.include(result.questions[0].serverPy!, '"hello"');
+    assert.equal(
+      result.questions[0].serverPy,
+      'def generate(data):\n    data["correct_answers"]["answer"] = "hello"\n',
+    );
   });
 
   it('generates server.py for numeric', () => {
@@ -128,8 +138,10 @@ describe('PLEmitter', () => {
       body: { type: 'numeric', answer: { correctValue: 42 } },
     });
     const result = emitter.emit(makeAssessment([q]));
-    assert.isDefined(result.questions[0].serverPy);
-    assert.include(result.questions[0].serverPy!, '42');
+    assert.equal(
+      result.questions[0].serverPy,
+      'def generate(data):\n    data["correct_answers"]["answer"] = 42\n',
+    );
   });
 
   it('uses custom topic and tags from options', () => {
@@ -152,7 +164,10 @@ describe('PLEmitter', () => {
       },
     });
     const result = emitter.emit(makeAssessment([q]));
-    assert.include(result.questions[0].questionHtml, '<pl-order-blocks');
+    assert.equal(
+      result.questions[0].questionHtml,
+      '<pl-question-panel>\n<p>What is 2+2?</p>\n</pl-question-panel>\n\n<pl-order-blocks answers-name="answer">\n  <pl-answer correct="true">First</pl-answer>\n  <pl-answer correct="true">Second</pl-answer>\n</pl-order-blocks>',
+    );
   });
 
   it('produces stable UUIDs', () => {
@@ -211,23 +226,17 @@ describe('PLEmitter', () => {
     });
 
     it('sets showClosedAssessment: false when hide_results is set', () => {
-      const result = emitter.emit(
-        makeAssessment([makeQuestion()], { hideResults: true }),
-      );
+      const result = emitter.emit(makeAssessment([makeQuestion()], { hideResults: true }));
       assert.isFalse(result.assessment.infoJson.allowAccess?.[0].showClosedAssessment);
     });
 
     it('sets showClosedAssessment: false when showCorrectAnswers is false', () => {
-      const result = emitter.emit(
-        makeAssessment([makeQuestion()], { showCorrectAnswers: false }),
-      );
+      const result = emitter.emit(makeAssessment([makeQuestion()], { showCorrectAnswers: false }));
       assert.isFalse(result.assessment.infoJson.allowAccess?.[0].showClosedAssessment);
     });
 
     it('does not set showClosedAssessment when answers are shown immediately', () => {
-      const result = emitter.emit(
-        makeAssessment([makeQuestion()], { showCorrectAnswers: true }),
-      );
+      const result = emitter.emit(makeAssessment([makeQuestion()], { showCorrectAnswers: true }));
       assert.isUndefined(result.assessment.infoJson.allowAccess?.[0].showClosedAssessment);
     });
 
@@ -272,8 +281,10 @@ describe('PLEmitter', () => {
         },
       });
       const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
-      assert.include(html, '<pl-dropdown');
-      assert.notInclude(html, '<pl-multiple-choice');
+      assert.equal(
+        html,
+        '<pl-question-panel>\n<p>What is 2+2?</p>\n</pl-question-panel>\n\n<pl-dropdown answers-name="answer">\n  <pl-answer correct="false">Option A</pl-answer>\n  <pl-answer correct="true">Option B</pl-answer>\n</pl-dropdown>',
+      );
     });
   });
 
@@ -320,7 +331,14 @@ describe('PLEmitter', () => {
     it('stores base64 asset as Buffer in clientFiles', () => {
       const q = makeQuestion({
         assets: new Map([
-          ['image.png', { type: 'base64', value: Buffer.from('fake').toString('base64'), contentType: 'image/png' }],
+          [
+            'image.png',
+            {
+              type: 'base64',
+              value: Buffer.from('fake').toString('base64'),
+              contentType: 'image/png',
+            },
+          ],
         ]),
       });
       const result = emitter.emit(makeAssessment([q]));
@@ -330,9 +348,7 @@ describe('PLEmitter', () => {
 
     it('stores file-path asset as string in clientFiles', () => {
       const q = makeQuestion({
-        assets: new Map([
-          ['chart.png', { type: 'file-path', value: 'Quiz Files/chart.png' }],
-        ]),
+        assets: new Map([['chart.png', { type: 'file-path', value: 'Quiz Files/chart.png' }]]),
       });
       const result = emitter.emit(makeAssessment([q]));
       const files = result.questions[0].clientFiles;
@@ -346,8 +362,8 @@ describe('PLEmitter', () => {
       const q2 = makeQuestion({ sourceId: 'q2', title: 'Same Title' });
       const result = emitter.emit(makeAssessment([q1, q2]));
       const dirs = result.questions.map((q) => q.directoryName);
-      assert.notEqual(dirs[0], dirs[1]);
-      assert.include(dirs[1], '-2');
+      assert.equal(dirs[0], 'same-title');
+      assert.equal(dirs[1], 'same-title-2');
     });
   });
 

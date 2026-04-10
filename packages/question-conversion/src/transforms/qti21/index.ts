@@ -1,5 +1,6 @@
 import type { QTI21ParsedItem } from '../../types/qti21.js';
 import { TransformRegistry } from '../transform-registry.js';
+
 import { choiceInteractionHandler } from './choice-interaction.js';
 import { extendedTextInteractionHandler } from './extended-text-interaction.js';
 import { inlineChoiceInteractionHandler } from './inline-choice-interaction.js';

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { describe, it, assert } from 'vitest';
+
+import { assert, describe, it } from 'vitest';
 
 import { QTI21Parser } from './qti21-parser.js';
 
@@ -62,9 +63,9 @@ describe('QTI21Parser', () => {
       assert.equal(q.body.type, 'checkbox');
       if (q.body.type === 'checkbox') {
         assert.equal(q.body.choices.length, 3);
-        assert.isTrue(q.body.choices[0].correct);  // A=2, correct
+        assert.isTrue(q.body.choices[0].correct); // A=2, correct
         assert.isFalse(q.body.choices[1].correct); // B=4, wrong
-        assert.isTrue(q.body.choices[2].correct);  // C=7, correct
+        assert.isTrue(q.body.choices[2].correct); // C=7, correct
       }
     });
   });
@@ -83,7 +84,10 @@ describe('QTI21Parser', () => {
 
     it('includes prompt text', () => {
       const result = parser.parse(readFixture('text-entry.xml'));
-      assert.include(result.questions[0].promptHtml, 'sunlight');
+      assert.equal(
+        result.questions[0].promptHtml,
+        'What process do plants use to convert sunlight into energy?',
+      );
     });
   });
 
@@ -146,7 +150,7 @@ describe('QTI21Parser', () => {
         assert.equal(q.body.display, 'dropdown');
         assert.equal(q.body.choices.length, 3);
         assert.isFalse(q.body.choices[0].correct); // A=green
-        assert.isTrue(q.body.choices[1].correct);  // B=blue
+        assert.isTrue(q.body.choices[1].correct); // B=blue
         assert.isFalse(q.body.choices[2].correct); // C=red
       }
     });

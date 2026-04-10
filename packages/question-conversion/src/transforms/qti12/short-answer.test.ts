@@ -1,6 +1,7 @@
-import { describe, it, assert } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
 import type { QTI12ParsedItem } from '../../types/qti12.js';
+
 import { shortAnswerHandler } from './short-answer.js';
 
 describe('shortAnswerHandler', () => {
@@ -37,8 +38,9 @@ describe('shortAnswerHandler', () => {
       metadata: {},
     };
     const result = shortAnswerHandler.transform(item);
-    if (result.body.type === 'string-input') {
-      assert.equal(result.body.correctAnswer, 'expected answer');
-    }
+    assert.equal(result.body.type, 'string-input');
+    if (result.body.type !== 'string-input') return;
+    assert.equal(result.body.correctAnswer, 'expected answer');
+    assert.isTrue(result.body.ignoreCase);
   });
 });

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { describe, it, assert } from 'vitest';
+
+import { assert, describe, it } from 'vitest';
 
 import { convert } from './pipeline.js';
 
@@ -16,42 +17,60 @@ describe('convert (integration)', () => {
       assert.equal(result.questions.length, 1);
       const q = result.questions[0];
       assert.equal(q.infoJson.type, 'v3');
+      assert.equal(q.infoJson.title, 'Hashing Question');
       assert.equal(q.infoJson.topic, 'Data Structures');
-      assert.include(q.questionHtml, '<pl-multiple-choice');
-      assert.include(q.questionHtml, 'Double hashing');
+      assert.deepEqual(q.infoJson.tags, ['imported', 'qti']);
+      assert.isTrue(q.infoJson.singleVariant);
       assert.equal(q.directoryName, 'hashing');
+      assert.equal(
+        q.questionHtml,
+        '<pl-question-panel>\n<p>Which collision resolution method tries different sequences?</p>\n</pl-question-panel>\n\n<pl-multiple-choice answers-name="answer" fixed-order="true">\n  <pl-answer correct="true">Double hashing</pl-answer>\n  <pl-answer correct="false">Linear probing</pl-answer>\n  <pl-answer correct="false">Quadratic probing</pl-answer>\n</pl-multiple-choice>',
+      );
     });
 
     it('converts a true/false quiz end-to-end', () => {
       const xml = readFileSync(path.join(QTI12_FIXTURES, 'canvas-tf.xml'), 'utf-8');
       const result = convert(xml);
       assert.equal(result.questions.length, 1);
-      assert.include(result.questions[0].questionHtml, 'True');
-      assert.include(result.questions[0].questionHtml, 'False');
+      assert.equal(
+        result.questions[0].questionHtml,
+        '<pl-question-panel>\nThe sky is blue.\n</pl-question-panel>\n\n<pl-multiple-choice answers-name="answer" fixed-order="true">\n  <pl-answer correct="true">True</pl-answer>\n  <pl-answer correct="false">False</pl-answer>\n</pl-multiple-choice>',
+      );
     });
 
     it('converts a checkbox quiz end-to-end', () => {
       const xml = readFileSync(path.join(QTI12_FIXTURES, 'canvas-checkbox.xml'), 'utf-8');
       const result = convert(xml);
       assert.equal(result.questions.length, 1);
-      assert.include(result.questions[0].questionHtml, '<pl-checkbox');
+      assert.equal(
+        result.questions[0].questionHtml,
+        '<pl-question-panel>\n<p>Select all correct answers</p>\n</pl-question-panel>\n\n<pl-checkbox answers-name="answer" fixed-order="true">\n  <pl-answer correct="true">Correct A</pl-answer>\n  <pl-answer correct="true">Correct B</pl-answer>\n  <pl-answer correct="false">Wrong C</pl-answer>\n</pl-checkbox>',
+      );
     });
 
     it('converts a matching quiz end-to-end', () => {
       const xml = readFileSync(path.join(QTI12_FIXTURES, 'canvas-matching.xml'), 'utf-8');
       const result = convert(xml);
       assert.equal(result.questions.length, 1);
-      assert.include(result.questions[0].questionHtml, '<pl-matching');
-      assert.include(result.questions[0].questionHtml, '<pl-statement');
+      assert.equal(
+        result.questions[0].questionHtml,
+        '<pl-question-panel>\n<p>Match terms with definitions</p>\n</pl-question-panel>\n\n<pl-matching answers-name="answer">\n  <pl-statement match="Upper Bound">Big O</pl-statement>\n  <pl-statement match="Tight Bound">Big Theta</pl-statement>\n  <pl-option>Lower Bound</pl-option>\n</pl-matching>',
+      );
     });
 
     it('converts a fill-in-blanks quiz end-to-end', () => {
       const xml = readFileSync(path.join(QTI12_FIXTURES, 'canvas-fitb.xml'), 'utf-8');
       const result = convert(xml);
       assert.equal(result.questions.length, 1);
-      assert.include(result.questions[0].questionHtml, '<pl-string-input');
-      assert.isDefined(result.questions[0].serverPy);
-      assert.include(result.questions[0].serverPy!, 'bogota');
+      const q = result.questions[0];
+      assert.equal(
+        q.questionHtml,
+        '<pl-question-panel>\n<p>The capital of Colombia is [capital1] and Estonia is [capital2].</p>\n</pl-question-panel>\n\n<p><strong>capital1:</strong></p>\n<pl-string-input answers-name="capital1" remove-leading-trailing="true" ignore-case="true"></pl-string-input>\n<p><strong>capital2:</strong></p>\n<pl-string-input answers-name="capital2" remove-leading-trailing="true" ignore-case="true"></pl-string-input>',
+      );
+      assert.equal(
+        q.serverPy,
+        'def generate(data):\n    data["correct_answers"]["capital1"] = "bogota"\n    data["correct_answers"]["capital2"] = "tallinn"\n',
+      );
     });
   });
 
@@ -60,8 +79,10 @@ describe('convert (integration)', () => {
       const xml = readFileSync(path.join(QTI21_FIXTURES, 'choice-interaction.xml'), 'utf-8');
       const result = convert(xml);
       assert.equal(result.questions.length, 1);
-      assert.include(result.questions[0].questionHtml, '<pl-multiple-choice');
-      assert.include(result.questions[0].questionHtml, 'Paris');
+      assert.equal(
+        result.questions[0].questionHtml,
+        '<pl-question-panel>\nWhat is the capital of France?\n</pl-question-panel>\n\n<pl-multiple-choice answers-name="answer" fixed-order="true">\n  <pl-answer correct="false">London</pl-answer>\n  <pl-answer correct="true">Paris</pl-answer>\n  <pl-answer correct="false">Berlin</pl-answer>\n</pl-multiple-choice>',
+      );
     });
   });
 

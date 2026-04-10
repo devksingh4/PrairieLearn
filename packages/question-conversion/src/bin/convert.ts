@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
-import { access, copyFile, readdir, readFile, mkdir, stat, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+
 import { Command } from 'commander';
+
+import { logger } from '@prairielearn/logger';
 
 import { convert } from '../pipeline.js';
 import { slugify } from '../utils/slugify.js';
@@ -16,7 +19,10 @@ program
   .argument('<input>', 'Input QTI XML file or directory of quiz exports')
   .requiredOption('--course <dir>', 'Path to PrairieLearn course directory')
   .requiredOption('--course-instance <name>', 'Course instance name (e.g. "Fall2025")')
-  .option('--timezone <tz>', 'Course timezone (e.g. "America/Denver"). Read from infoCourse.json if present.')
+  .option(
+    '--timezone <tz>',
+    'Course timezone (e.g. "America/Denver"). Read from infoCourse.json if present.',
+  )
   .option('-t, --topic <topic>', 'Default topic for questions')
   .option('--tags <tags...>', 'Default tags for questions', ['imported', 'qti'])
   .action(
@@ -43,7 +49,7 @@ program
         const xmlFiles = await findQtiXmlFiles(resolvedInput);
 
         if (xmlFiles.length === 0) {
-          console.error('No QTI XML files found in directory');
+          logger.error('No QTI XML files found in directory');
           process.exit(1);
         }
 
@@ -77,7 +83,7 @@ async function resolveTimezone(courseDir: string, flagValue?: string): Promise<s
     // File doesn't exist yet — fall through to error
   }
 
-  console.error(
+  logger.error(
     'Error: course timezone is required.\n' +
       'Pass --timezone "America/Denver" (or the appropriate IANA timezone),\n' +
       'or ensure infoCourse.json already contains a "timezone" field.',
@@ -182,7 +188,7 @@ async function convertFile(
           try {
             await copyFile(srcFile, path.join(cfDir, name));
           } catch {
-            console.warn(`Warning: could not find image file: ${srcFile}`);
+            logger.warn(`Warning: could not find image file: ${srcFile}`);
           }
         }
       }
@@ -196,10 +202,10 @@ async function convertFile(
   );
 
   for (const w of result.warnings) {
-    console.warn(`Warning [${w.questionId}]: ${w.message}`);
+    logger.warn(`Warning [${w.questionId}]: ${w.message}`);
   }
 
-  console.log(`Converted "${result.assessmentTitle}": ${result.questions.length} question(s)`);
+  logger.info(`Converted "${result.assessmentTitle}": ${result.questions.length} question(s)`);
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -228,7 +234,7 @@ async function ensureCourseFiles(
       tags: [{ name: 'imported', color: 'gray1', description: 'Imported from QTI' }],
     };
     await writeFile(infoCourseFile, JSON.stringify(infoCourse, null, 2) + '\n');
-    console.log(`Created ${path.relative(process.cwd(), infoCourseFile)}`);
+    logger.info(`Created ${path.relative(process.cwd(), infoCourseFile)}`);
   }
 
   const ciDir = path.join(courseDir, 'courseInstances', courseInstance);
@@ -247,6 +253,6 @@ async function ensureCourseFiles(
       ],
     };
     await writeFile(infoCIFile, JSON.stringify(infoCourseInstance, null, 2) + '\n');
-    console.log(`Created ${path.relative(process.cwd(), infoCIFile)}`);
+    logger.info(`Created ${path.relative(process.cwd(), infoCIFile)}`);
   }
 }

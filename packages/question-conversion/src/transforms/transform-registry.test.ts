@@ -1,7 +1,6 @@
-import { describe, it, assert } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
-import { TransformRegistry } from './transform-registry.js';
-import type { TransformHandler } from './transform-registry.js';
+import { type TransformHandler, TransformRegistry } from './transform-registry.js';
 
 interface FakeItem {
   value: string;
@@ -39,12 +38,12 @@ describe('TransformRegistry', () => {
 
   it('supportedTypes() lists all registered types', () => {
     const registry = new TransformRegistry<FakeItem>();
-    const h2: TransformHandler<FakeItem> = { questionType: 'other-type', transform: () => ({ body: { type: 'text-only' } }) };
+    const h2: TransformHandler<FakeItem> = {
+      questionType: 'other-type',
+      transform: () => ({ body: { type: 'text-only' } }),
+    };
     registry.register(fakeHandler);
     registry.register(h2);
-    const types = registry.supportedTypes();
-    assert.include(types, 'fake-type');
-    assert.include(types, 'other-type');
-    assert.equal(types.length, 2);
+    assert.deepEqual(registry.supportedTypes(), ['fake-type', 'other-type']);
   });
 });

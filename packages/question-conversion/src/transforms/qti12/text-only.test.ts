@@ -1,6 +1,7 @@
-import { describe, it, assert } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
 import type { QTI12ParsedItem } from '../../types/qti12.js';
+
 import { textOnlyHandler } from './text-only.js';
 
 describe('textOnlyHandler', () => {

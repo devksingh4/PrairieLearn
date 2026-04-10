@@ -1,6 +1,7 @@
-import { describe, it, assert } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
 import type { QTI21ParsedItem } from '../../types/qti21.js';
+
 import { textEntryInteractionHandler } from './text-entry-interaction.js';
 
 describe('textEntryInteractionHandler', () => {

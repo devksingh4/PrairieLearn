@@ -13,7 +13,7 @@ export const choiceInteractionHandler: TransformHandler<QTI21ParsedItem> = {
     const correctResponse = item.correctResponses.find(
       (r) => r.responseIdentifier === interaction.responseIdentifier,
     );
-    const correctValues = new Set(correctResponse?.values ?? []);
+    const correctValues = new Set(correctResponse?.values);
 
     const choices = interaction.choices.map((c) => ({
       id: c.identifier,

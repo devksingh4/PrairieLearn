@@ -1,10 +1,12 @@
+import { createQTI12Registry } from '../../transforms/qti12/index.js';
+import type { TransformRegistry } from '../../transforms/transform-registry.js';
 import type {
+  AssetReference,
   IRAssessment,
   IRAssessmentMeta,
   IRFeedback,
   IRQuestion,
   IRZone,
-  AssetReference,
 } from '../../types/ir.js';
 import type {
   QTI12CorrectCondition,
@@ -12,8 +14,6 @@ import type {
   QTI12ResponseLabel,
   QTI12ResponseLid,
 } from '../../types/qti12.js';
-import { createQTI12Registry } from '../../transforms/qti12/index.js';
-import type { TransformRegistry } from '../../transforms/transform-registry.js';
 import {
   cleanQuestionHtml,
   convertLatexItemizeToMarkdown,
@@ -23,6 +23,7 @@ import {
   unescapeHtml,
 } from '../../utils/html.js';
 import type { InputParser, ParseOptions } from '../parser.js';
+
 import {
   attr,
   ensureArray,
@@ -104,7 +105,7 @@ export class QTI12AssessmentParser implements InputParser {
 
     const timeLimit = metadata['qmd_timelimit'];
     if (timeLimit) {
-      meta.timeLimitMinutes = parseInt(timeLimit, 10);
+      meta.timeLimitMinutes = Number.parseInt(timeLimit, 10);
     }
 
     const maxAttempts = metadata['cc_maxattempts'];
@@ -112,8 +113,8 @@ export class QTI12AssessmentParser implements InputParser {
       if (maxAttempts === 'unlimited') {
         meta.maxAttempts = -1;
       } else {
-        const parsed = parseInt(maxAttempts, 10);
-        if (!isNaN(parsed)) meta.maxAttempts = parsed;
+        const parsed = Number.parseInt(maxAttempts, 10);
+        if (!Number.isNaN(parsed)) meta.maxAttempts = parsed;
       }
     }
 
@@ -154,16 +155,16 @@ export class QTI12AssessmentParser implements InputParser {
     // allowed_attempts: -1 = unlimited, positive = specific count
     const allowedAttempts = textContent(quiz['allowed_attempts']);
     if (allowedAttempts != null && allowedAttempts !== '') {
-      const n = parseInt(allowedAttempts, 10);
-      if (!isNaN(n)) {
+      const n = Number.parseInt(allowedAttempts, 10);
+      if (!Number.isNaN(n)) {
         meta.maxAttempts = n; // -1 = unlimited, overrides cc_maxattempts
       }
     }
 
     const pointsPossible = textContent(quiz['points_possible']);
     if (pointsPossible) {
-      const n = parseFloat(pointsPossible);
-      if (!isNaN(n)) meta.pointsPossible = n;
+      const n = Number.parseFloat(pointsPossible);
+      if (!Number.isNaN(n)) meta.pointsPossible = n;
     }
 
     const description = textContent(quiz['description']);
@@ -180,8 +181,8 @@ export class QTI12AssessmentParser implements InputParser {
     // Time limit in minutes (assessment_meta stores it directly, QTI uses qmd_timelimit)
     const timeLimit = textContent(quiz['time_limit']);
     if (timeLimit) {
-      const n = parseInt(timeLimit, 10);
-      if (!isNaN(n) && n > 0) meta.timeLimitMinutes = n;
+      const n = Number.parseInt(timeLimit, 10);
+      if (!Number.isNaN(n) && n > 0) meta.timeLimitMinutes = n;
     }
 
     // Access dates — prefer lock_at over due_at as the hard close
@@ -205,7 +206,10 @@ export class QTI12AssessmentParser implements InputParser {
       meta.showCorrectAnswers = false;
     }
 
-    const showCorrectAnswersAt = normalizeDate(textContent(quiz['show_correct_answers_at']), timezone);
+    const showCorrectAnswersAt = normalizeDate(
+      textContent(quiz['show_correct_answers_at']),
+      timezone,
+    );
     if (showCorrectAnswersAt) meta.showCorrectAnswersAt = showCorrectAnswersAt;
 
     // hide_results: "always" means never show results to students
@@ -323,9 +327,11 @@ export class QTI12AssessmentParser implements InputParser {
     const itemMetadata = getNestedValue(itemEl, 'itemmetadata', 'qtimetadata');
     const metadata = parseMetadata(itemMetadata);
     const questionType =
-      metadata['question_type'] ?? CC_PROFILE_TO_QUESTION_TYPE[metadata['cc_profile'] ?? ''] ?? 'unknown';
+      metadata['question_type'] ??
+      CC_PROFILE_TO_QUESTION_TYPE[metadata['cc_profile'] ?? ''] ??
+      'unknown';
     const pointsPossible = metadata['points_possible']
-      ? parseFloat(metadata['points_possible'])
+      ? Number.parseFloat(metadata['points_possible'])
       : undefined;
 
     // Parse prompt HTML
@@ -397,7 +403,7 @@ export class QTI12AssessmentParser implements InputParser {
       const setvar = condRec['setvar'];
       if (setvar != null) {
         const scoreText = textContent(setvar);
-        if (scoreText && parseFloat(scoreText) <= 0) continue;
+        if (scoreText && Number.parseFloat(scoreText) <= 0) continue;
       }
 
       const conditionvar = condRec['conditionvar'] as Record<string, unknown> | undefined;

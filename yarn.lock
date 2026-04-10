@@ -5494,6 +5494,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@prairielearn/question-conversion@workspace:packages/question-conversion"
   dependencies:
+    "@prairielearn/logger": "workspace:^"
     "@prairielearn/tsconfig": "workspace:^"
     "@types/node": "npm:^24.12.2"
     "@types/uuid": "npm:^10.0.0"

@@ -1,16 +1,17 @@
-import type { IRAssessment, IRQuestion, AssetReference } from '../../types/ir.js';
+import { createQTI21Registry } from '../../transforms/qti21/index.js';
+import type { TransformRegistry } from '../../transforms/transform-registry.js';
+import type { AssetReference, IRAssessment, IRQuestion } from '../../types/ir.js';
 import type {
+  QTI21AssociableChoice,
   QTI21CorrectResponse,
+  QTI21InlineChoice,
   QTI21Interaction,
   QTI21ParsedItem,
   QTI21SimpleChoice,
-  QTI21AssociableChoice,
-  QTI21InlineChoice,
 } from '../../types/qti21.js';
-import { createQTI21Registry } from '../../transforms/qti21/index.js';
-import type { TransformRegistry } from '../../transforms/transform-registry.js';
 import { ensureResponsiveImages, extractInlineImages } from '../../utils/html.js';
 import type { InputParser, ParseOptions } from '../parser.js';
+
 import { attr21, ensureArray21, parseQti21Xml, textContent21 } from './xml-helpers.js';
 
 /**
@@ -183,7 +184,7 @@ export class QTI21Parser implements InputParser {
       interactions.push({
         type: 'choiceInteraction',
         responseIdentifier: attr21(ciRec, 'responseIdentifier'),
-        maxChoices: parseInt(attr21(ciRec, 'maxChoices') || '1', 10),
+        maxChoices: Number.parseInt(attr21(ciRec, 'maxChoices') || '1', 10),
         shuffle: attr21(ciRec, 'shuffle') === 'true',
         choices,
       });
@@ -196,7 +197,7 @@ export class QTI21Parser implements InputParser {
       interactions.push({
         type: 'textEntryInteraction',
         responseIdentifier: attr21(teiRec, 'responseIdentifier'),
-        expectedLength: parseInt(attr21(teiRec, 'expectedLength') || '0', 10) || undefined,
+        expectedLength: Number.parseInt(attr21(teiRec, 'expectedLength') || '0', 10) || undefined,
       });
     }
 
@@ -207,7 +208,7 @@ export class QTI21Parser implements InputParser {
       interactions.push({
         type: 'extendedTextInteraction',
         responseIdentifier: attr21(etiRec, 'responseIdentifier'),
-        expectedLength: parseInt(attr21(etiRec, 'expectedLength') || '0', 10) || undefined,
+        expectedLength: Number.parseInt(attr21(etiRec, 'expectedLength') || '0', 10) || undefined,
       });
     }
 
@@ -276,7 +277,7 @@ export class QTI21Parser implements InputParser {
       .map((c) => ({
         identifier: attr21(c, 'identifier'),
         html: textContent21(c),
-        matchMax: parseInt(attr21(c, 'matchMax') || '0', 10) || undefined,
+        matchMax: Number.parseInt(attr21(c, 'matchMax') || '0', 10) || undefined,
       }));
   }
 

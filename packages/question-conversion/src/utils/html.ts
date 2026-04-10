@@ -3,12 +3,12 @@ import crypto from 'node:crypto';
 /** Unescape HTML entities (Canvas exports HTML-escaped content). */
 export function unescapeHtml(text: string): string {
   return text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, '\u00A0');
+    .replaceAll('&amp;', '&')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&nbsp;', '\u00A0');
 }
 
 const DATA_URI_RE = /src=(["'])data:(?<mime>image\/[a-zA-Z0-9.+-]+);base64,(?<data>[^"']+)\1/g;
@@ -25,7 +25,7 @@ export function extractInlineImages(html: string): {
 } {
   const files = new Map<string, Buffer>();
 
-  const rewritten = html.replace(DATA_URI_RE, (_match, quote, mime, data) => {
+  const rewritten = html.replaceAll(DATA_URI_RE, (_match, quote, mime, data) => {
     const ext = mime.split('/')[1].replace('+xml', '');
     const imgBytes = Buffer.from(data, 'base64');
     const digest = crypto.createHash('sha256').update(imgBytes).digest('hex').slice(0, 16);
@@ -43,7 +43,7 @@ const IMG_TAG_RE = /<img\b[^>]*>/gi;
  * Add responsive CSS to all img tags that don't already have max-width set.
  */
 export function ensureResponsiveImages(html: string): string {
-  return html.replace(IMG_TAG_RE, (tag) => {
+  return html.replaceAll(IMG_TAG_RE, (tag) => {
     if (/style=/i.test(tag) && /max-width/i.test(tag)) {
       return tag;
     }
@@ -75,7 +75,7 @@ export function resolveImsFileRefs(html: string): {
 } {
   const fileRefs = new Map<string, string>();
 
-  const rewritten = html.replace(IMS_CC_FILEBASE_RE, (_match, rawPath: string) => {
+  const rewritten = html.replaceAll(IMS_CC_FILEBASE_RE, (_match, rawPath: string) => {
     const decodedPath = decodeURIComponent(rawPath);
     const filename = decodedPath.split('/').pop() ?? decodedPath;
     fileRefs.set(filename, decodedPath);
@@ -96,7 +96,7 @@ const ITEM_TOKEN_RE = /\\item(?:\[[^\]]*\])?/g;
  * prompt HTML. PrairieLearn renders <markdown> blocks via its markdown element.
  */
 export function convertLatexItemizeToMarkdown(html: string): string {
-  return html.replace(ITEMIZE_BLOCK_RE, (_match, body: string) => {
+  return html.replaceAll(ITEMIZE_BLOCK_RE, (_match, body: string) => {
     // Find all \item tokens and extract text between them
     const itemTokens: RegExpExecArray[] = [];
     ITEM_TOKEN_RE.lastIndex = 0;
@@ -113,7 +113,7 @@ export function convertLatexItemizeToMarkdown(html: string): string {
     for (let i = 0; i < itemTokens.length; i++) {
       const start = itemTokens[i].index + itemTokens[i][0].length;
       const end = i + 1 < itemTokens.length ? itemTokens[i + 1].index : body.length;
-      const itemText = body.slice(start, end).trim().replace(/\s+/g, ' ');
+      const itemText = body.slice(start, end).trim().replaceAll(/\s+/g, ' ');
       if (itemText) {
         lines.push(`- ${itemText}`);
       }

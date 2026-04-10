@@ -1,5 +1,6 @@
 import type { QTI12ParsedItem } from '../../types/qti12.js';
 import { TransformRegistry } from '../transform-registry.js';
+
 import { essayHandler } from './essay.js';
 import { fillInBlanksHandler } from './fill-in-blanks.js';
 import { matchingHandler } from './matching.js';

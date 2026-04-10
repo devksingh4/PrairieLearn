@@ -1,6 +1,7 @@
-import { describe, it, assert } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
 import type { QTI12ParsedItem } from '../../types/qti12.js';
+
 import { fillInBlanksHandler } from './fill-in-blanks.js';
 
 function makeItem(): QTI12ParsedItem {
@@ -53,7 +54,10 @@ describe('fillInBlanksHandler', () => {
   it('uses empty string when correct label has no matching text', () => {
     const item = makeItem();
     // Point the correct condition to a non-existent label ident
-    item.correctConditions[0] = { responseIdent: 'response_capital1', correctLabelIdent: 'NOTFOUND' };
+    item.correctConditions[0] = {
+      responseIdent: 'response_capital1',
+      correctLabelIdent: 'NOTFOUND',
+    };
     const result = fillInBlanksHandler.transform(item);
     if (result.body.type !== 'fill-in-blanks') return;
     assert.equal(result.body.blanks[0].correctText, '');

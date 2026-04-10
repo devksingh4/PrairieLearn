@@ -1,9 +1,10 @@
-import { describe, it, assert } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
 import type { QTI21ParsedItem } from '../../types/qti21.js';
+
 import { choiceInteractionHandler } from './choice-interaction.js';
 
-function makeItem(maxChoices: number = 1): QTI21ParsedItem {
+function makeItem(maxChoices = 1): QTI21ParsedItem {
   return {
     identifier: 'q1',
     title: 'Choice Question',

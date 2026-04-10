@@ -1,6 +1,7 @@
-import { describe, it, assert } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
 import type { QTI21ParsedItem } from '../../types/qti21.js';
+
 import { inlineChoiceInteractionHandler } from './inline-choice-interaction.js';
 
 describe('inlineChoiceInteractionHandler', () => {
@@ -13,7 +14,10 @@ describe('inlineChoiceInteractionHandler', () => {
       correctResponses: [],
       metadata: {},
     };
-    assert.throws(() => inlineChoiceInteractionHandler.transform(item), /no inlineChoiceInteraction/);
+    assert.throws(
+      () => inlineChoiceInteractionHandler.transform(item),
+      /no inlineChoiceInteraction/,
+    );
   });
 
   it('produces multiple-choice with dropdown display', () => {
