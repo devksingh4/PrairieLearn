@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+  identifier="q-inline" title="Inline Choice" adaptive="false" timeDependent="false">
+  <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="identifier">
+    <correctResponse>
+      <value>B</value>
+    </correctResponse>
+  </responseDeclaration>
+  <itemBody>
+    <p>The sky is [color].</p>
+    <inlineChoiceInteraction responseIdentifier="RESPONSE" shuffle="false">
+      <inlineChoice identifier="A">green</inlineChoice>
+      <inlineChoice identifier="B">blue</inlineChoice>
+      <inlineChoice identifier="C">red</inlineChoice>
+    </inlineChoiceInteraction>
+  </itemBody>
+</assessmentItem>

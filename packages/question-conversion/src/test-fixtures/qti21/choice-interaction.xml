@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+  identifier="q1" title="Capital Question" adaptive="false" timeDependent="false">
+  <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="identifier">
+    <correctResponse>
+      <value>B</value>
+    </correctResponse>
+  </responseDeclaration>
+  <itemBody>
+    <p>What is the capital of France?</p>
+    <choiceInteraction responseIdentifier="RESPONSE" shuffle="false" maxChoices="1">
+      <simpleChoice identifier="A">London</simpleChoice>
+      <simpleChoice identifier="B">Paris</simpleChoice>
+      <simpleChoice identifier="C">Berlin</simpleChoice>
+    </choiceInteraction>
+  </itemBody>
+</assessmentItem>

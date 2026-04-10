@@ -1,0 +1,125 @@
+/** A single answer choice for MC/checkbox questions. */
+export interface IRChoice {
+  id: string;
+  html: string;
+  correct: boolean;
+}
+
+/** A matching pair: left-side statement matched to a right-side option. */
+export interface IRMatchPair {
+  statementHtml: string;
+  optionHtml: string;
+}
+
+/** A distractor option in a matching question with no correct statement. */
+export interface IRMatchDistractor {
+  optionHtml: string;
+}
+
+/** A fill-in-the-blank slot. */
+export interface IRBlank {
+  id: string;
+  correctText: string;
+  ignoreCase?: boolean;
+}
+
+/** Numeric answer specification. */
+export interface IRNumericAnswer {
+  correctValue: number;
+  tolerance?: number;
+  toleranceType?: 'absolute' | 'relative';
+}
+
+/** An item in an ordering question. */
+export interface IROrderItem {
+  id: string;
+  html: string;
+}
+
+/** Feedback attached to a question. */
+export interface IRFeedback {
+  correct?: string;
+  incorrect?: string;
+  general?: string;
+}
+
+/** Reference to an asset (image, file) needed by the question. */
+export interface AssetReference {
+  type: 'file-path' | 'url' | 'base64';
+  value: string;
+  contentType?: string;
+}
+
+/** Discriminated union for question body types. */
+export type IRQuestionBody =
+  | { type: 'multiple-choice'; choices: IRChoice[]; display?: 'dropdown' }
+  | { type: 'checkbox'; choices: IRChoice[] }
+  | { type: 'matching'; pairs: IRMatchPair[]; distractors: IRMatchDistractor[] }
+  | { type: 'fill-in-blanks'; blanks: IRBlank[] }
+  | { type: 'numeric'; answer: IRNumericAnswer }
+  | { type: 'string-input'; correctAnswer: string; ignoreCase?: boolean }
+  | { type: 'ordering'; correctOrder: IROrderItem[] }
+  | { type: 'rich-text'; gradingMethod: 'Manual' }
+  | { type: 'text-only' };
+
+/** A single converted question in IR form. */
+export interface IRQuestion {
+  sourceId: string;
+  title: string;
+  promptHtml: string;
+  body: IRQuestionBody;
+  points?: number;
+  feedback?: IRFeedback;
+  assets: Map<string, AssetReference>;
+  metadata?: Record<string, string>;
+}
+
+/** A group of questions within an assessment (maps to a PL zone). */
+export interface IRZone {
+  title: string;
+  questions: IRQuestion[];
+}
+
+/** Assessment-level metadata extracted from QTI. */
+export interface IRAssessmentMeta {
+  /** Time limit in minutes (from qmd_timelimit / time_limit). */
+  timeLimitMinutes?: number;
+  /** Maximum number of attempts (from cc_maxattempts / allowed_attempts). -1 or undefined = unlimited. */
+  maxAttempts?: number;
+  /** Whether answer choices should be shuffled. */
+  shuffleAnswers?: boolean;
+  /** Total points possible for the assessment. */
+  pointsPossible?: number;
+  /** Assessment description/instructions HTML. */
+  descriptionHtml?: string;
+  /** Whether the assessment is a timed exam vs homework-style. */
+  assessmentType?: 'Homework' | 'Exam';
+  /** Access start date / unlock date (ISO 8601). */
+  startDate?: string;
+  /** Hard close date (lock_at). Prefer over dueDate for access control. */
+  lockDate?: string;
+  /** Soft due date (due_at). */
+  dueDate?: string;
+  /** Whether to show correct answers to students after the assessment closes. */
+  showCorrectAnswers?: boolean;
+  /** Date after which correct answers become visible (ISO 8601). */
+  showCorrectAnswersAt?: string;
+  /** Whether to hide results from students entirely (hide_results: always). */
+  hideResults?: boolean;
+  /** IP address filter (CIDR notation, comma-separated). */
+  ipFilter?: string;
+  /** How to score multiple attempts: keep_highest or keep_latest. */
+  scoringPolicy?: 'keep_highest' | 'keep_latest';
+}
+
+/** A collection of questions from one source (e.g., one assessment). */
+export interface IRAssessment {
+  sourceId: string;
+  title: string;
+  /** Flat list of all questions (for backward compat / simple use). */
+  questions: IRQuestion[];
+  /** Questions organized by sections/zones. If present, preferred over flat `questions`. */
+  zones?: IRZone[];
+  /** Assessment-level metadata. */
+  meta?: IRAssessmentMeta;
+}

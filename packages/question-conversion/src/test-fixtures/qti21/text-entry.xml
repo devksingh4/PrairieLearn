@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
+  identifier="q-text-entry" title="Fill In Text" adaptive="false" timeDependent="false">
+  <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="string">
+    <correctResponse>
+      <value>photosynthesis</value>
+    </correctResponse>
+  </responseDeclaration>
+  <itemBody>
+    <p>What process do plants use to convert sunlight into energy?</p>
+    <textEntryInteraction responseIdentifier="RESPONSE" expectedLength="20"/>
+  </itemBody>
+</assessmentItem>
