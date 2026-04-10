@@ -21,8 +21,8 @@ export const choiceInteractionHandler: TransformHandler<QTI21ParsedItem> = {
       correct: correctValues.has(c.identifier),
     }));
 
-    // maxChoices > 1 means checkbox (select multiple)
-    if (interaction.maxChoices !== 1) {
+    // maxChoices > 1 means checkbox (select multiple); default is single-choice.
+    if ((interaction.maxChoices ?? 1) !== 1) {
       return { body: { type: 'checkbox', choices } };
     }
 

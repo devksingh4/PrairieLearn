@@ -30,14 +30,18 @@ function makeItem(correctIdent: string): QTI12ParsedItem {
 describe('trueFalseHandler', () => {
   it('marks True as correct when True is the answer', () => {
     const result = trueFalseHandler.transform(makeItem('true1'));
-    if (result.body.type !== 'multiple-choice') return;
+    if (result.body.type !== 'multiple-choice') {
+      assert.fail(`Expected multiple-choice body, got ${result.body.type}`);
+    }
     assert.isTrue(result.body.choices[0].correct);
     assert.isFalse(result.body.choices[1].correct);
   });
 
   it('marks False as correct when False is the answer', () => {
     const result = trueFalseHandler.transform(makeItem('false1'));
-    if (result.body.type !== 'multiple-choice') return;
+    if (result.body.type !== 'multiple-choice') {
+      assert.fail(`Expected multiple-choice body, got ${result.body.type}`);
+    }
     assert.isFalse(result.body.choices[0].correct);
     assert.isTrue(result.body.choices[1].correct);
   });
@@ -59,7 +63,9 @@ describe('trueFalseHandler', () => {
 
   it('always orders True before False', () => {
     const result = trueFalseHandler.transform(makeItem('true1'));
-    if (result.body.type !== 'multiple-choice') return;
+    if (result.body.type !== 'multiple-choice') {
+      assert.fail(`Expected multiple-choice body, got ${result.body.type}`);
+    }
     assert.equal(result.body.choices[0].html, 'True');
     assert.equal(result.body.choices[1].html, 'False');
   });

@@ -33,8 +33,9 @@ describe('multipleChoiceHandler', () => {
   it('produces multiple-choice body with correct answer marked', () => {
     const result = multipleChoiceHandler.transform(makeItem());
     assert.equal(result.body.type, 'multiple-choice');
-    if (result.body.type !== 'multiple-choice') return;
-
+    if (result.body.type !== 'multiple-choice') {
+      assert.fail(`Expected multiple-choice body, got ${result.body.type}`);
+    }
     assert.equal(result.body.choices.length, 3);
     assert.isFalse(result.body.choices[0].correct);
     assert.isTrue(result.body.choices[1].correct);
@@ -43,7 +44,9 @@ describe('multipleChoiceHandler', () => {
 
   it('preserves choice text', () => {
     const result = multipleChoiceHandler.transform(makeItem());
-    if (result.body.type !== 'multiple-choice') return;
+    if (result.body.type !== 'multiple-choice') {
+      assert.fail(`Expected multiple-choice body, got ${result.body.type}`);
+    }
     assert.equal(result.body.choices[0].html, 'Option A');
   });
 

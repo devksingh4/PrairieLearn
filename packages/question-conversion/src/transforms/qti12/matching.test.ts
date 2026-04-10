@@ -46,7 +46,9 @@ describe('matchingHandler', () => {
   it('produces matching body with pairs', () => {
     const result = matchingHandler.transform(makeItem());
     assert.equal(result.body.type, 'matching');
-    if (result.body.type !== 'matching') return;
+    if (result.body.type !== 'matching') {
+      assert.fail(`Expected matching body, got ${result.body.type}`);
+    }
 
     assert.equal(result.body.pairs.length, 2);
     assert.equal(result.body.pairs[0].statementHtml, 'Big O');
@@ -60,13 +62,17 @@ describe('matchingHandler', () => {
     // Remove the correct condition for the first statement
     item.correctConditions = [{ responseIdent: 'response_2', correctLabelIdent: 'opt3' }];
     const result = matchingHandler.transform(item);
-    if (result.body.type !== 'matching') return;
+    if (result.body.type !== 'matching') {
+      assert.fail(`Expected matching body, got ${result.body.type}`);
+    }
     assert.equal(result.body.pairs[0].optionHtml, '');
   });
 
   it('identifies distractors', () => {
     const result = matchingHandler.transform(makeItem());
-    if (result.body.type !== 'matching') return;
+    if (result.body.type !== 'matching') {
+      assert.fail(`Expected matching body, got ${result.body.type}`);
+    }
 
     assert.equal(result.body.distractors.length, 1);
     assert.equal(result.body.distractors[0].optionHtml, 'Lower Bound');

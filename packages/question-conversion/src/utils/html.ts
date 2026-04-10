@@ -3,12 +3,12 @@ import crypto from 'node:crypto';
 /** Unescape HTML entities (Canvas exports HTML-escaped content). */
 export function unescapeHtml(text: string): string {
   return text
-    .replaceAll('&amp;', '&')
     .replaceAll('&lt;', '<')
     .replaceAll('&gt;', '>')
     .replaceAll('&quot;', '"')
     .replaceAll('&#39;', "'")
-    .replaceAll('&nbsp;', '\u00A0');
+    .replaceAll('&nbsp;', '\u00A0')
+    .replaceAll('&amp;', '&');
 }
 
 const DATA_URI_RE = /src=(["'])data:(?<mime>image\/[a-zA-Z0-9.+-]+);base64,(?<data>[^"']+)\1/g;
@@ -79,8 +79,8 @@ export function resolveImsFileRefs(html: string): {
     const decodedPath = decodeURIComponent(rawPath);
     const base = decodedPath.split('/').pop() ?? decodedPath;
     const dot = base.lastIndexOf('.');
-    const stem = dot >= 0 ? base.slice(0, dot) : base;
-    const ext = dot >= 0 ? base.slice(dot) : '';
+    const stem = dot !== -1 ? base.slice(0, dot) : base;
+    const ext = dot !== -1 ? base.slice(dot) : '';
     let filename = base;
     let suffix = 1;
     while (fileRefs.has(filename) && fileRefs.get(filename) !== decodedPath) {

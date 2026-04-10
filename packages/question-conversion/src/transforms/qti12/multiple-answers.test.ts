@@ -46,7 +46,9 @@ describe('multipleAnswersHandler', () => {
 
   it('marks correct and incorrect choices', () => {
     const result = multipleAnswersHandler.transform(makeItem());
-    if (result.body.type !== 'checkbox') return;
+    if (result.body.type !== 'checkbox') {
+      assert.fail(`Expected matching body, got ${result.body.type}`);
+    }
     assert.isTrue(result.body.choices[0].correct);
     assert.isTrue(result.body.choices[1].correct);
     assert.isFalse(result.body.choices[2].correct);

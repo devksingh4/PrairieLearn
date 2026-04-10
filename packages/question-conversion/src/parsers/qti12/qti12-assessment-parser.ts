@@ -10,6 +10,7 @@ import type {
 } from '../../types/ir.js';
 import type {
   QTI12CorrectCondition,
+  QTI12ParsedAssessment,
   QTI12ParsedItem,
   QTI12ResponseLabel,
   QTI12ResponseLid,
@@ -81,18 +82,26 @@ export class QTI12AssessmentParser implements InputParser {
       throw new Error('Invalid QTI 1.2 assessment XML: missing <assessment> element');
     }
 
-    const assessmentIdent = attr(assessment, 'ident');
-    const assessmentTitle = attr(assessment, 'title');
+    const parsedAssessment = this.buildParsedAssessment(assessment);
     const meta = this.parseAssessmentMeta(assessment, options);
     const { questions, zones } = this.buildQuestionsAndZones(assessment, options);
 
     return {
-      sourceId: assessmentIdent,
-      title: assessmentTitle,
+      sourceId: parsedAssessment.ident,
+      title: parsedAssessment.title,
       questions,
       zones: zones.length > 0 ? zones : undefined,
       meta,
     };
+  }
+
+  private buildParsedAssessment(assessment: Record<string, unknown>): QTI12ParsedAssessment {
+    const ident = attr(assessment, 'ident');
+    const title = attr(assessment, 'title');
+    const qtimetadata = assessment['qtimetadata'];
+    const metadata = parseMetadata(qtimetadata);
+    const items = this.collectItems(assessment).map((item) => this.parseItem(item));
+    return { ident, title, metadata, items };
   }
 
   private parseAssessmentMeta(

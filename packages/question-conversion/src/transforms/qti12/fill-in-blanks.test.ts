@@ -42,8 +42,9 @@ describe('fillInBlanksHandler', () => {
 
   it('extracts blanks with correct answers', () => {
     const result = fillInBlanksHandler.transform(makeItem());
-    if (result.body.type !== 'fill-in-blanks') return;
-
+    if (result.body.type !== 'fill-in-blanks') {
+      assert.fail(`Expected fill-in-blanks body, got ${result.body.type}`);
+    }
     assert.equal(result.body.blanks.length, 2);
     assert.equal(result.body.blanks[0].id, 'capital1');
     assert.equal(result.body.blanks[0].correctText, 'bogota');
@@ -59,13 +60,17 @@ describe('fillInBlanksHandler', () => {
       correctLabelIdent: 'NOTFOUND',
     };
     const result = fillInBlanksHandler.transform(item);
-    if (result.body.type !== 'fill-in-blanks') return;
+    if (result.body.type !== 'fill-in-blanks') {
+      assert.fail(`Expected fill-in-blanks body, got ${result.body.type}`);
+    }
     assert.equal(result.body.blanks[0].correctText, '');
   });
 
   it('sets ignoreCase to true', () => {
     const result = fillInBlanksHandler.transform(makeItem());
-    if (result.body.type !== 'fill-in-blanks') return;
+    if (result.body.type !== 'fill-in-blanks') {
+      assert.fail(`Expected fill-in-blanks body, got ${result.body.type}`);
+    }
     assert.isTrue(result.body.blanks[0].ignoreCase);
   });
 });

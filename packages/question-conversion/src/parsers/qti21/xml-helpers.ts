@@ -45,6 +45,7 @@ export function textContent21(value: unknown): string {
   if (value == null) return '';
   if (typeof value === 'string') return value.trim();
   if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return String(value);
   if (typeof value === 'object' && '#text' in (value as Record<string, unknown>)) {
     return String((value as Record<string, unknown>)['#text']).trim();
   }

@@ -39,7 +39,9 @@ describe('shortAnswerHandler', () => {
     };
     const result = shortAnswerHandler.transform(item);
     assert.equal(result.body.type, 'string-input');
-    if (result.body.type !== 'string-input') return;
+    if (result.body.type !== 'string-input') {
+      assert.fail(`Expected matching body, got ${result.body.type}`);
+    }
     assert.equal(result.body.correctAnswer, 'expected answer');
     assert.isTrue(result.body.ignoreCase);
   });

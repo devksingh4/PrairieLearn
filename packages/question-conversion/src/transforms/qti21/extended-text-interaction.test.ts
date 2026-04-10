@@ -16,7 +16,9 @@ describe('extendedTextInteractionHandler', () => {
     };
     const result = extendedTextInteractionHandler.transform(item);
     assert.equal(result.body.type, 'rich-text');
-    if (result.body.type !== 'rich-text') return;
+    if (result.body.type !== 'rich-text') {
+      assert.fail(`Expected matching body, got ${result.body.type}`);
+    }
     assert.equal(result.body.gradingMethod, 'Manual');
   });
 });

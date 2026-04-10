@@ -4,8 +4,10 @@ import type { AssetReference, IRAssessment, IRQuestion } from '../../types/ir.js
 import type {
   QTI21AssociableChoice,
   QTI21CorrectResponse,
+  QTI21GapText,
   QTI21InlineChoice,
   QTI21Interaction,
+  QTI21ParsedAssessment,
   QTI21ParsedItem,
   QTI21SimpleChoice,
 } from '../../types/qti21.js';
@@ -66,18 +68,19 @@ export class QTI21Parser implements InputParser {
     testEl: Record<string, unknown>,
     options?: ParseOptions,
   ): IRAssessment {
-    const identifier = attr21(testEl, 'identifier');
-    const title = attr21(testEl, 'title');
-
-    // Collect items from test parts/sections
-    const items: QTI21ParsedItem[] = [];
-    this.collectItemsFromTest(testEl, items);
-
-    const questions = items
+    const parsedAssessment = this.buildParsedAssessment(testEl);
+    const questions = parsedAssessment.items
       .map((item) => this.transformItem(item, options))
       .filter((q): q is IRQuestion => q !== null);
+    return { sourceId: parsedAssessment.identifier, title: parsedAssessment.title, questions };
+  }
 
-    return { sourceId: identifier, title, questions };
+  private buildParsedAssessment(testEl: Record<string, unknown>): QTI21ParsedAssessment {
+    const identifier = attr21(testEl, 'identifier');
+    const title = attr21(testEl, 'title');
+    const items: QTI21ParsedItem[] = [];
+    this.collectItemsFromTest(testEl, items);
+    return { identifier, title, items };
   }
 
   private collectItemsFromTest(parent: Record<string, unknown>, items: QTI21ParsedItem[]): void {
@@ -263,6 +266,29 @@ export class QTI21Parser implements InputParser {
         type: 'inlineChoiceInteraction',
         responseIdentifier: attr21(iciRec, 'responseIdentifier'),
         choices,
+      });
+    }
+
+    // gapMatchInteraction
+    for (const gmi of ensureArray21(itemBody['gapMatchInteraction'] as unknown)) {
+      if (gmi == null || typeof gmi !== 'object') continue;
+      const gmiRec = gmi as Record<string, unknown>;
+      const gapTexts: QTI21GapText[] = ensureArray21(gmiRec['gapText'] as unknown)
+        .filter((g): g is Record<string, unknown> => g != null && typeof g === 'object')
+        .map((g) => ({
+          identifier: attr21(g, 'identifier'),
+          text: textContent21(g),
+        }));
+      const gapIdentifiers = ensureArray21(gmiRec['gap'] as unknown)
+        .filter((g): g is Record<string, unknown> => g != null && typeof g === 'object')
+        .map((g) => attr21(g, 'identifier'));
+
+      interactions.push({
+        type: 'gapMatchInteraction',
+        responseIdentifier: attr21(gmiRec, 'responseIdentifier'),
+        shuffle: attr21(gmiRec, 'shuffle') === 'true',
+        gapTexts,
+        gapIdentifiers,
       });
     }
 

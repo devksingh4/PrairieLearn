@@ -60,6 +60,14 @@ export type QTI21Interaction =
       type: 'inlineChoiceInteraction';
       responseIdentifier: string;
       choices: QTI21InlineChoice[];
+    }
+  | {
+      type: 'gapMatchInteraction';
+      responseIdentifier: string;
+      shuffle: boolean;
+      gapTexts: QTI21GapText[];
+      /** Identifiers of gap placeholders in the prompt body. */
+      gapIdentifiers: string[];
     };
 
 /** A correct response value from responseDeclaration. */
