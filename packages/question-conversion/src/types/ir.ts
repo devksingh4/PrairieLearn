@@ -30,7 +30,6 @@ export interface IRNumericAnswer {
   toleranceType?: 'absolute' | 'relative';
 }
 
-
 /** Integer answer specification. */
 export interface IRIntegerAnswer {
   correctValue: number;
@@ -75,7 +74,7 @@ export type IRQuestionBody =
   | { type: 'rich-text'; gradingMethod: 'Manual' }
   | { type: 'text-only' };
 
-export type IRQuestionGradingMethod = "External" | "Internal" | "Manual" | undefined;
+export type IRQuestionGradingMethod = 'External' | 'Internal' | 'Manual' | undefined;
 
 /** A single converted question in IR form. */
 export interface IRQuestion {

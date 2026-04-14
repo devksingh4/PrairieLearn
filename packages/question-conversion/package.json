@@ -24,7 +24,7 @@
     "@prairielearn/logger": "workspace:^",
     "commander": "^14.0.3",
     "fast-xml-parser": "^5.2.0",
-    "mime-types": "^3.0.2",
+    "mime": "^4.1.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

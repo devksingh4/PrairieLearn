@@ -1,4 +1,4 @@
-import { lookup as mimeLookup } from 'mime-types';
+import mime from 'mime';
 
 import { createQTI12Registry } from '../../transforms/qti12/index.js';
 import type { TransformRegistry } from '../../transforms/transform-registry.js';
@@ -51,7 +51,7 @@ const CC_PROFILE_TO_QUESTION_TYPE: Record<string, string> = {
   'cc.order.v0p1': 'ordering_question',
 };
 
-const MANUAL_GRADING_QUESTION_TYPES = ["rich-text"];
+const MANUAL_GRADING_QUESTION_TYPES = new Set(['rich-text']);
 
 /**
  * Parser for QTI 1.2 assessment profile XML (Canvas quiz/course exports).
@@ -529,7 +529,7 @@ export class QTI12AssessmentParser implements InputParser {
       assets.set(filename, {
         type: 'base64',
         value: buffer.toString('base64'),
-        contentType: mimeLookup(filename) || 'application/octet-stream',
+        contentType: mime.getType(filename) || 'application/octet-stream',
       });
     }
     if (result.assets) {
@@ -583,7 +583,7 @@ export class QTI12AssessmentParser implements InputParser {
         ...(parseOptions?.defaultTopic ? { topic: parseOptions.defaultTopic } : {}),
       },
       shuffleAnswers,
-      gradingMethod: MANUAL_GRADING_QUESTION_TYPES.includes(result.body.type) ? "Manual" : "Internal"
+      gradingMethod: MANUAL_GRADING_QUESTION_TYPES.has(result.body.type) ? 'Manual' : 'Internal',
     };
   }
 }

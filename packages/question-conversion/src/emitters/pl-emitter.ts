@@ -81,8 +81,10 @@ export class PLEmitter implements OutputEmitter {
         const qIr = questionBySourceId.get(q.sourceId);
         return {
           id: prefix ? `${prefix}/${q.directoryName}` : q.directoryName,
-          ...(qIr?.body.type === "rich-text" ? {manualPoints: qIr.points} : {autoPoints: qIr?.points }),
-        }
+          ...(qIr?.body.type === 'rich-text'
+            ? { manualPoints: qIr.points }
+            : { autoPoints: qIr?.points }),
+        };
       });
       zones.push({ title: 'Questions', questions: zoneQuestions });
     }
@@ -160,7 +162,7 @@ export class PLEmitter implements OutputEmitter {
       if (dir) {
         result.push({
           id: prefix ? `${prefix}/${dir}` : dir,
-          ...(q.body.type === "rich-text" ? {manualPoints: q.points} : {autoPoints: q.points}),
+          ...(q.body.type === 'rich-text' ? { manualPoints: q.points } : { autoPoints: q.points }),
         });
       }
     }
@@ -216,10 +218,8 @@ export class PLEmitter implements OutputEmitter {
       tags,
       type: 'v3',
       singleVariant: true,
+      gradingMethod: question.gradingMethod,
     };
-
-    infoJson.gradingMethod = question.gradingMethod;
-  
 
     const questionHtml = this.renderQuestionHtml(question);
     const serverPy = this.renderServerPy(question);
@@ -259,14 +259,13 @@ export class PLEmitter implements OutputEmitter {
       promptHtml = this.inlineFillInBlanks(promptHtml, question.body.blanks);
     }
 
-    const parts: string[] = [
-      '<pl-question-panel>',
-      promptHtml,
-      '</pl-question-panel>',
-      '',
-    ];
+    const parts: string[] = ['<pl-question-panel>', promptHtml, '</pl-question-panel>', ''];
 
-    const bodyHtml = this.renderBodyHtml(question.body, question.shuffleAnswers, question.feedback?.perAnswer);
+    const bodyHtml = this.renderBodyHtml(
+      question.body,
+      question.shuffleAnswers,
+      question.feedback?.perAnswer,
+    );
     if (bodyHtml) {
       parts.push(bodyHtml);
     }
@@ -275,10 +274,7 @@ export class PLEmitter implements OutputEmitter {
     // Per-answer feedback is emitted as feedback="..." attributes on <pl-answer> elements.
     const fb = question.feedback;
     if (fb?.correct || fb?.incorrect) {
-      parts.push('');
-      parts.push('<pl-answer-panel>');
-      parts.push('{{{feedback.general}}}');
-      parts.push('</pl-answer-panel>');
+      parts.push('', '<pl-answer-panel>', '{{{feedback.general}}}', '</pl-answer-panel>');
     }
 
     return parts.join('\n');
@@ -293,7 +289,11 @@ export class PLEmitter implements OutputEmitter {
     return result;
   }
 
-  private renderBodyHtml(body: IRQuestionBody, shuffleAnswers?: boolean, perAnswer?: Record<string, string>): string {
+  private renderBodyHtml(
+    body: IRQuestionBody,
+    shuffleAnswers?: boolean,
+    perAnswer?: Record<string, string>,
+  ): string {
     switch (body.type) {
       case 'multiple-choice':
         return this.renderMultipleChoice(body.choices, body.display, shuffleAnswers, perAnswer);
@@ -322,7 +322,12 @@ export class PLEmitter implements OutputEmitter {
     }
   }
 
-  private renderMultipleChoice(choices: IRChoice[], display?: 'dropdown', shuffleAnswers?: boolean, perAnswer?: Record<string, string>): string {
+  private renderMultipleChoice(
+    choices: IRChoice[],
+    display?: 'dropdown',
+    shuffleAnswers?: boolean,
+    perAnswer?: Record<string, string>,
+  ): string {
     if (display === 'dropdown') {
       const lines = ['<pl-dropdown answers-name="answer">'];
       for (const choice of choices) {
@@ -339,19 +344,27 @@ export class PLEmitter implements OutputEmitter {
     for (const choice of choices) {
       const fb = perAnswer?.[choice.html];
       const fbAttr = fb ? ` feedback="${escapeAttr(fb)}"` : '';
-      lines.push(`  <pl-answer correct="${choice.correct}"${fbAttr}>${escapeHtml(choice.html)}</pl-answer>`);
+      lines.push(
+        `  <pl-answer correct="${choice.correct}"${fbAttr}>${escapeHtml(choice.html)}</pl-answer>`,
+      );
     }
     lines.push('</pl-multiple-choice>');
     return lines.join('\n');
   }
 
-  private renderCheckbox(choices: IRChoice[], shuffleAnswers?: boolean, perAnswer?: Record<string, string>): string {
+  private renderCheckbox(
+    choices: IRChoice[],
+    shuffleAnswers?: boolean,
+    perAnswer?: Record<string, string>,
+  ): string {
     const fixedOrder = shuffleAnswers ? 'false' : 'true';
     const lines = [`<pl-checkbox answers-name="answer" fixed-order="${fixedOrder}">`];
     for (const choice of choices) {
       const fb = perAnswer?.[choice.html];
       const fbAttr = fb ? ` feedback="${escapeAttr(fb)}"` : '';
-      lines.push(`  <pl-answer correct="${choice.correct}"${fbAttr}>${escapeHtml(choice.html)}</pl-answer>`);
+      lines.push(
+        `  <pl-answer correct="${choice.correct}"${fbAttr}>${escapeHtml(choice.html)}</pl-answer>`,
+      );
     }
     lines.push('</pl-checkbox>');
     return lines.join('\n');
@@ -405,15 +418,14 @@ export class PLEmitter implements OutputEmitter {
 
     const lines = ['def grade(data):'];
     if (correct && incorrect) {
-      lines.push(`    if data["score"] >= 1.0:`);
-      lines.push(`        data["feedback"]["general"] = ${JSON.stringify(correct)}`);
-      lines.push(`    else:`);
+      lines.push('    if data["score"] >= 1.0:');
+      lines.push(`        data["feedback"]["general"] = ${JSON.stringify(correct)}`, '    else:');
       lines.push(`        data["feedback"]["general"] = ${JSON.stringify(incorrect)}`);
     } else if (correct) {
-      lines.push(`    if data["score"] >= 1.0:`);
+      lines.push('    if data["score"] >= 1.0:');
       lines.push(`        data["feedback"]["general"] = ${JSON.stringify(correct)}`);
     } else {
-      lines.push(`    if data["score"] < 1.0:`);
+      lines.push('    if data["score"] < 1.0:');
       lines.push(`        data["feedback"]["general"] = ${JSON.stringify(incorrect)}`);
     }
     lines.push('');
