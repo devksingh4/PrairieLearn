@@ -306,6 +306,8 @@ export class PLEmitter implements OutputEmitter {
         return '';
       case 'numeric':
         return `<pl-number-input answers-name="answer" correct-answer="${body.answer.correctValue}"></pl-number-input>`;
+      case 'integer':
+        return `<pl-integer-input answers-name="answer" correct-answer="${body.answer.correctValue}"></pl-number-input>`;
       case 'string-input':
         return `<pl-string-input answers-name="answer" correct-answer="${escapeAttr(body.correctAnswer)}" remove-leading-trailing="true"${body.ignoreCase ? ' ignore-case="true"' : ''}></pl-string-input>`;
       case 'ordering':

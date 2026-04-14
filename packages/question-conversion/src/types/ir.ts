@@ -23,11 +23,17 @@ export interface IRBlank {
   ignoreCase?: boolean;
 }
 
-/** Numeric answer specification. */
+/** Numeric, non-integer answer specification. */
 export interface IRNumericAnswer {
   correctValue: number;
   tolerance?: number;
   toleranceType?: 'absolute' | 'relative';
+}
+
+
+/** Integer answer specification. */
+export interface IRIntegerAnswer {
+  correctValue: number;
 }
 
 /** An item in an ordering question. */
@@ -63,6 +69,7 @@ export type IRQuestionBody =
   | { type: 'matching'; pairs: IRMatchPair[]; distractors: IRMatchDistractor[] }
   | { type: 'fill-in-blanks'; blanks: IRBlank[] }
   | { type: 'numeric'; answer: IRNumericAnswer }
+  | { type: 'integer'; answer: IRIntegerAnswer }
   | { type: 'string-input'; correctAnswer: string; ignoreCase?: boolean }
   | { type: 'ordering'; correctOrder: IROrderItem[] }
   | { type: 'rich-text'; gradingMethod: 'Manual' }

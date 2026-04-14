@@ -12,9 +12,10 @@ export const shortAnswerHandler: TransformHandler<QTI12ParsedItem> = {
 
     const numericValue = Number(correctAnswer.trim());
     if (correctAnswer.trim() !== '' && !isNaN(numericValue)) {
+      const isInteger = Number.isInteger(numericValue);
       return {
         body: {
-          type: 'numeric',
+          type: isInteger ? 'integer' : 'numeric',
           answer: { correctValue: numericValue },
         },
       };
