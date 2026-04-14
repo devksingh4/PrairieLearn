@@ -10,6 +10,16 @@ export const shortAnswerHandler: TransformHandler<QTI12ParsedItem> = {
     const correctAnswer =
       item.correctConditions[0]?.correctLabelIdent ?? item.feedbacks.get('general_fb') ?? '';
 
+    const numericValue = Number(correctAnswer.trim());
+    if (correctAnswer.trim() !== '' && !isNaN(numericValue)) {
+      return {
+        body: {
+          type: 'numeric',
+          answer: { correctValue: numericValue },
+        },
+      };
+    }
+
     return {
       body: {
         type: 'string-input',

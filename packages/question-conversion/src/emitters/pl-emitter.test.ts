@@ -84,7 +84,7 @@ describe('PLEmitter', () => {
     );
   });
 
-  it('generates fill-in-blanks HTML with inline inputs and server.py', () => {
+  it('generates fill-in-blanks HTML with inline inputs and correct-answer attributes', () => {
     const q = makeQuestion({
       promptHtml: '<p>The capital is [capital1].</p>',
       body: {
@@ -95,12 +95,9 @@ describe('PLEmitter', () => {
     const result = emitter.emit(makeAssessment([q]));
     assert.equal(
       result.questions[0].questionHtml,
-      '<pl-question-panel>\n<p>The capital is <pl-string-input answers-name="capital1" remove-leading-trailing="true" ignore-case="true"></pl-string-input>.</p>\n</pl-question-panel>\n',
+      '<pl-question-panel>\n<p>The capital is <pl-string-input answers-name="capital1" correct-answer="bogota" remove-leading-trailing="true" ignore-case="true"></pl-string-input>.</p>\n</pl-question-panel>\n',
     );
-    assert.equal(
-      result.questions[0].serverPy,
-      'def generate(data):\n    data["correct_answers"]["capital1"] = "bogota"\n',
-    );
+    assert.isUndefined(result.questions[0].serverPy);
   });
 
   it('generates fill-in-blanks HTML with multiple inline inputs', () => {
@@ -189,13 +186,13 @@ describe('PLEmitter', () => {
       assert.notInclude(result.questions[0].serverPy ?? '', 'grade');
     });
 
-    it('emits generate() and grade() together for numeric questions with feedback', () => {
+    it('emits only grade() for numeric questions with feedback', () => {
       const q = makeQuestion({
         body: { type: 'numeric', answer: { correctValue: 42 } },
         feedback: { correct: '<p>Yes!</p>', incorrect: '<p>No.</p>' },
       });
       const serverPy = emitter.emit(makeAssessment([q])).questions[0].serverPy;
-      assert.include(serverPy, 'def generate(data):');
+      assert.notInclude(serverPy, 'def generate(data):');
       assert.include(serverPy, 'def grade(data):');
     });
   });
@@ -222,26 +219,23 @@ describe('PLEmitter', () => {
     );
   });
 
-  it('generates server.py for string-input', () => {
+  it('embeds correct-answer attribute on pl-string-input', () => {
     const q = makeQuestion({
       body: { type: 'string-input', correctAnswer: 'hello', ignoreCase: true },
     });
     const result = emitter.emit(makeAssessment([q]));
-    assert.equal(
-      result.questions[0].serverPy,
-      'def generate(data):\n    data["correct_answers"]["answer"] = "hello"\n',
-    );
+    assert.include(result.questions[0].questionHtml, 'correct-answer="hello"');
+    assert.include(result.questions[0].questionHtml, 'ignore-case="true"');
+    assert.isUndefined(result.questions[0].serverPy);
   });
 
-  it('generates server.py for numeric', () => {
+  it('embeds correct-answer attribute on pl-number-input', () => {
     const q = makeQuestion({
       body: { type: 'numeric', answer: { correctValue: 42 } },
     });
     const result = emitter.emit(makeAssessment([q]));
-    assert.equal(
-      result.questions[0].serverPy,
-      'def generate(data):\n    data["correct_answers"]["answer"] = 42\n',
-    );
+    assert.include(result.questions[0].questionHtml, 'correct-answer="42"');
+    assert.isUndefined(result.questions[0].serverPy);
   });
 
   it('uses custom topic and tags from options', () => {

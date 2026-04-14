@@ -287,7 +287,7 @@ export class PLEmitter implements OutputEmitter {
   private inlineFillInBlanks(promptHtml: string, blanks: IRBlank[]): string {
     let result = promptHtml;
     for (const blank of blanks) {
-      const input = `<pl-string-input answers-name="${escapeAttr(blank.id)}" remove-leading-trailing="true"${blank.ignoreCase ? ' ignore-case="true"' : ''}></pl-string-input>`;
+      const input = `<pl-string-input answers-name="${escapeAttr(blank.id)}" correct-answer="${escapeAttr(blank.correctText)}" remove-leading-trailing="true"${blank.ignoreCase ? ' ignore-case="true"' : ''}></pl-string-input>`;
       result = result.replaceAll(`[${blank.id}]`, input);
     }
     return result;
@@ -305,9 +305,9 @@ export class PLEmitter implements OutputEmitter {
         // Inputs are inlined directly into the prompt in renderQuestionHtml.
         return '';
       case 'numeric':
-        return '<pl-number-input answers-name="answer"></pl-number-input>';
+        return `<pl-number-input answers-name="answer" correct-answer="${body.answer.correctValue}"></pl-number-input>`;
       case 'string-input':
-        return '<pl-string-input answers-name="answer" remove-leading-trailing="true"></pl-string-input>';
+        return `<pl-string-input answers-name="answer" correct-answer="${escapeAttr(body.correctAnswer)}" remove-leading-trailing="true"${body.ignoreCase ? ' ignore-case="true"' : ''}></pl-string-input>`;
       case 'ordering':
         return this.renderOrdering(body);
       case 'rich-text':
@@ -390,36 +390,8 @@ export class PLEmitter implements OutputEmitter {
     return parts.join('\n');
   }
 
-  private renderGenerateFn(question: IRQuestion): string {
-    const body = question.body;
-    switch (body.type) {
-      case 'numeric':
-        return [
-          'def generate(data):',
-          `    data["correct_answers"]["answer"] = ${body.answer.correctValue}`,
-          '',
-        ].join('\n');
-
-      case 'string-input':
-        return [
-          'def generate(data):',
-          `    data["correct_answers"]["answer"] = ${JSON.stringify(body.correctAnswer)}`,
-          '',
-        ].join('\n');
-
-      case 'fill-in-blanks':
-        return [
-          'def generate(data):',
-          ...body.blanks.map(
-            (blank) =>
-              `    data["correct_answers"][${JSON.stringify(blank.id)}] = ${JSON.stringify(blank.correctText)}`,
-          ),
-          '',
-        ].join('\n');
-
-      default:
-        return '';
-    }
+  private renderGenerateFn(_question: IRQuestion): string {
+    return '';
   }
 
   private renderGradeFn(question: IRQuestion): string {

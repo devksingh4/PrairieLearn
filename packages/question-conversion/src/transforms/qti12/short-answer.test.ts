@@ -5,7 +5,7 @@ import type { QTI12ParsedItem } from '../../types/qti12.js';
 import { shortAnswerHandler } from './short-answer.js';
 
 describe('shortAnswerHandler', () => {
-  it('produces string-input body from correct condition', () => {
+  it('produces numeric body when correct answer is a number', () => {
     const item: QTI12ParsedItem = {
       ident: 'q1',
       title: 'Short Answer',
@@ -18,9 +18,28 @@ describe('shortAnswerHandler', () => {
       metadata: {},
     };
     const result = shortAnswerHandler.transform(item);
+    assert.equal(result.body.type, 'numeric');
+    if (result.body.type === 'numeric') {
+      assert.equal(result.body.answer.correctValue, 4);
+    }
+  });
+
+  it('produces string-input body when correct answer is text', () => {
+    const item: QTI12ParsedItem = {
+      ident: 'q1',
+      title: 'Short Answer',
+      questionType: 'short_answer_question',
+      promptHtml: '<p>What is the capital of France?</p>',
+      responseLids: [],
+      responseStrs: [{ ident: 'response1', rcardinality: 'Single', labels: [] }],
+      correctConditions: [{ responseIdent: 'response1', correctLabelIdent: 'Paris' }],
+      feedbacks: new Map(),
+      metadata: {},
+    };
+    const result = shortAnswerHandler.transform(item);
     assert.equal(result.body.type, 'string-input');
     if (result.body.type === 'string-input') {
-      assert.equal(result.body.correctAnswer, '4');
+      assert.equal(result.body.correctAnswer, 'Paris');
       assert.isTrue(result.body.ignoreCase);
     }
   });
