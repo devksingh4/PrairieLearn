@@ -5,7 +5,7 @@ import type { QTI12ParsedItem } from '../../types/qti12.js';
 import { shortAnswerHandler } from './short-answer.js';
 
 describe('shortAnswerHandler', () => {
-  it('produces numeric body when correct answer is a number', () => {
+  it('produces integer body when correct answer is a whole number', () => {
     const item: QTI12ParsedItem = {
       ident: 'q1',
       title: 'Short Answer',
@@ -18,9 +18,28 @@ describe('shortAnswerHandler', () => {
       metadata: {},
     };
     const result = shortAnswerHandler.transform(item);
+    assert.equal(result.body.type, 'integer');
+    if (result.body.type === 'integer') {
+      assert.equal(result.body.answer.correctValue, 4);
+    }
+  });
+
+  it('produces numeric body when correct answer is a decimal', () => {
+    const item: QTI12ParsedItem = {
+      ident: 'q1',
+      title: 'Short Answer',
+      questionType: 'short_answer_question',
+      promptHtml: '<p>What is pi approximately?</p>',
+      responseLids: [],
+      responseStrs: [{ ident: 'response1', rcardinality: 'Single', labels: [] }],
+      correctConditions: [{ responseIdent: 'response1', correctLabelIdent: '3.14' }],
+      feedbacks: new Map(),
+      metadata: {},
+    };
+    const result = shortAnswerHandler.transform(item);
     assert.equal(result.body.type, 'numeric');
     if (result.body.type === 'numeric') {
-      assert.equal(result.body.answer.correctValue, 4);
+      assert.equal(result.body.answer.correctValue, 3.14);
     }
   });
 
