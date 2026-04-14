@@ -11,7 +11,7 @@ export const shortAnswerHandler: TransformHandler<QTI12ParsedItem> = {
       item.correctConditions[0]?.correctLabelIdent ?? item.feedbacks.get('general_fb') ?? '';
 
     const numericValue = Number(correctAnswer.trim());
-    if (correctAnswer.trim() !== '' && !isNaN(numericValue)) {
+    if (correctAnswer.trim() !== '' && !Number.isNaN(numericValue)) {
       const isInteger = Number.isInteger(numericValue);
       return {
         body: {

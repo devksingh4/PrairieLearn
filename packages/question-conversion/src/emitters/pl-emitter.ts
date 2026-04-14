@@ -418,15 +418,22 @@ export class PLEmitter implements OutputEmitter {
 
     const lines = ['def grade(data):'];
     if (correct && incorrect) {
-      lines.push('    if data["score"] >= 1.0:');
-      lines.push(`        data["feedback"]["general"] = ${JSON.stringify(correct)}`, '    else:');
-      lines.push(`        data["feedback"]["general"] = ${JSON.stringify(incorrect)}`);
+      lines.push(
+        '    if data["score"] >= 1.0:',
+        `        data["feedback"]["general"] = ${JSON.stringify(correct)}`,
+        '    else:',
+        `        data["feedback"]["general"] = ${JSON.stringify(incorrect)}`,
+      );
     } else if (correct) {
-      lines.push('    if data["score"] >= 1.0:');
-      lines.push(`        data["feedback"]["general"] = ${JSON.stringify(correct)}`);
+      lines.push(
+        '    if data["score"] >= 1.0:',
+        `        data["feedback"]["general"] = ${JSON.stringify(correct)}`,
+      );
     } else {
-      lines.push('    if data["score"] < 1.0:');
-      lines.push(`        data["feedback"]["general"] = ${JSON.stringify(incorrect)}`);
+      lines.push(
+        '    if data["score"] < 1.0:',
+        `        data["feedback"]["general"] = ${JSON.stringify(incorrect)}`,
+      );
     }
     lines.push('');
     return lines.join('\n');
