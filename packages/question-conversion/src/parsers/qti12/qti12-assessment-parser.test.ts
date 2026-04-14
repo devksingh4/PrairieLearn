@@ -24,6 +24,235 @@ describe('QTI12AssessmentParser', () => {
     });
   });
 
+  describe('correct condition parsing', () => {
+    it('ignores feedback-only respconditions (no setvar) when determining correct answers', () => {
+      // Canvas QTI emits a displayfeedback respcondition (no setvar) for EVERY answer,
+      // then a separate setvar=100 condition for the correct answer only.
+      // Without the fix, every answer's feedback condition would be treated as correct.
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Q">
+    <section ident="root_section">
+      <item ident="q1" title="Q1">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>multiple_choice_question</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation>
+          <material><mattext texttype="text/html">&lt;p&gt;Pick&lt;/p&gt;</mattext></material>
+          <response_lid ident="response1" rcardinality="Single">
+            <render_choice>
+              <response_label ident="a1"><material><mattext>Washington</mattext></material></response_label>
+              <response_label ident="a2"><material><mattext>Jefferson</mattext></material></response_label>
+              <response_label ident="a3"><material><mattext>Lincoln</mattext></material></response_label>
+            </render_choice>
+          </response_lid>
+        </presentation>
+        <resprocessing>
+          <respcondition continue="Yes">
+            <conditionvar><varequal respident="response1">a1</varequal></conditionvar>
+            <displayfeedback feedbacktype="Response" linkrefid="a1_fb"/>
+          </respcondition>
+          <respcondition continue="Yes">
+            <conditionvar><varequal respident="response1">a2</varequal></conditionvar>
+            <displayfeedback feedbacktype="Response" linkrefid="a2_fb"/>
+          </respcondition>
+          <respcondition continue="Yes">
+            <conditionvar><varequal respident="response1">a3</varequal></conditionvar>
+            <displayfeedback feedbacktype="Response" linkrefid="a3_fb"/>
+          </respcondition>
+          <respcondition continue="No">
+            <conditionvar><varequal respident="response1">a2</varequal></conditionvar>
+            <setvar varname="SCORE">100</setvar>
+          </respcondition>
+        </resprocessing>
+      </item>
+    </section>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      const q = result.questions[0];
+      assert.equal(q.body.type, 'multiple-choice');
+      if (q.body.type === 'multiple-choice') {
+        assert.isFalse(q.body.choices[0].correct, 'Washington should not be correct');
+        assert.isTrue(q.body.choices[1].correct, 'Jefferson should be correct');
+        assert.isFalse(q.body.choices[2].correct, 'Lincoln should not be correct');
+      }
+    });
+
+    it('ignores feedback-only respconditions for true/false (prevents both choices being marked correct)', () => {
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Q">
+    <section ident="root_section">
+      <item ident="q1" title="TF">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>true_false_question</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation>
+          <material><mattext texttype="text/html">&lt;p&gt;The sky is blue.&lt;/p&gt;</mattext></material>
+          <response_lid ident="response1" rcardinality="Single">
+            <render_choice>
+              <response_label ident="t1"><material><mattext>True</mattext></material></response_label>
+              <response_label ident="f1"><material><mattext>False</mattext></material></response_label>
+            </render_choice>
+          </response_lid>
+        </presentation>
+        <resprocessing>
+          <respcondition continue="Yes">
+            <conditionvar><varequal respident="response1">t1</varequal></conditionvar>
+            <displayfeedback feedbacktype="Response" linkrefid="t1_fb"/>
+          </respcondition>
+          <respcondition continue="Yes">
+            <conditionvar><varequal respident="response1">f1</varequal></conditionvar>
+            <displayfeedback feedbacktype="Response" linkrefid="f1_fb"/>
+          </respcondition>
+          <respcondition continue="No">
+            <conditionvar><varequal respident="response1">t1</varequal></conditionvar>
+            <setvar varname="SCORE">100</setvar>
+          </respcondition>
+        </resprocessing>
+      </item>
+    </section>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      const q = result.questions[0];
+      assert.equal(q.body.type, 'multiple-choice');
+      if (q.body.type === 'multiple-choice') {
+        assert.isTrue(q.body.choices[0].correct, 'True should be correct');
+        assert.isFalse(q.body.choices[1].correct, 'False should not be correct');
+      }
+    });
+  });
+
+  describe('feedback parsing', () => {
+    it('extracts correct_fb and general_incorrect_fb via flow_mat path', () => {
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Q">
+    <section ident="root_section">
+      <item ident="q1" title="Q1">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>multiple_choice_question</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation>
+          <material><mattext texttype="text/html">&lt;p&gt;Pick&lt;/p&gt;</mattext></material>
+          <response_lid ident="response1" rcardinality="Single">
+            <render_choice>
+              <response_label ident="a1"><material><mattext>A</mattext></material></response_label>
+            </render_choice>
+          </response_lid>
+        </presentation>
+        <resprocessing>
+          <respcondition continue="No">
+            <conditionvar><varequal respident="response1">a1</varequal></conditionvar>
+            <setvar varname="SCORE">100</setvar>
+          </respcondition>
+        </resprocessing>
+        <itemfeedback ident="correct_fb">
+          <flow_mat><material><mattext texttype="text/html">&lt;p&gt;Well done!&lt;/p&gt;</mattext></material></flow_mat>
+        </itemfeedback>
+        <itemfeedback ident="general_incorrect_fb">
+          <flow_mat><material><mattext texttype="text/html">&lt;p&gt;Try again.&lt;/p&gt;</mattext></material></flow_mat>
+        </itemfeedback>
+      </item>
+    </section>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      const q = result.questions[0];
+      assert.equal(q.feedback?.correct, '<p>Well done!</p>');
+      assert.equal(q.feedback?.incorrect, '<p>Try again.</p>');
+    });
+
+    it('falls back to per-answer {ident}_fb feedback when global idents are absent', () => {
+      // This is the Canvas pattern for true/false and MC questions with per-answer feedback.
+      // The correct answer's {ident}_fb becomes feedback.correct; an incorrect one becomes feedback.incorrect.
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Q">
+    <section ident="root_section">
+      <item ident="q1" title="Coconuts">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>true_false_question</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation>
+          <material><mattext texttype="text/html">&lt;p&gt;Are coconuts migratory?&lt;/p&gt;</mattext></material>
+          <response_lid ident="response1" rcardinality="Single">
+            <render_choice>
+              <response_label ident="7877"><material><mattext>True</mattext></material></response_label>
+              <response_label ident="5840"><material><mattext>False</mattext></material></response_label>
+            </render_choice>
+          </response_lid>
+        </presentation>
+        <resprocessing>
+          <respcondition continue="Yes">
+            <conditionvar><varequal respident="response1">7877</varequal></conditionvar>
+            <displayfeedback feedbacktype="Response" linkrefid="7877_fb"/>
+          </respcondition>
+          <respcondition continue="Yes">
+            <conditionvar><varequal respident="response1">5840</varequal></conditionvar>
+            <displayfeedback feedbacktype="Response" linkrefid="5840_fb"/>
+          </respcondition>
+          <respcondition continue="No">
+            <conditionvar><varequal respident="response1">7877</varequal></conditionvar>
+            <setvar action="Set" varname="SCORE">100</setvar>
+          </respcondition>
+        </resprocessing>
+        <itemfeedback ident="7877_fb">
+          <flow_mat><material><mattext texttype="text/html">&lt;p&gt;Indeed, coconuts are migratory.&lt;/p&gt;</mattext></material></flow_mat>
+        </itemfeedback>
+        <itemfeedback ident="5840_fb">
+          <flow_mat><material><mattext texttype="text/html">&lt;p&gt;Incorrect, coconuts migrate.&lt;/p&gt;</mattext></material></flow_mat>
+        </itemfeedback>
+      </item>
+    </section>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      const q = result.questions[0];
+      assert.deepEqual(q.feedback?.perAnswer, {
+        True: '<p>Indeed, coconuts are migratory.</p>',
+        False: '<p>Incorrect, coconuts migrate.</p>',
+      });
+    });
+
+    it('extracts feedback via material → mattext when flow_mat is absent', () => {
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Q">
+    <section ident="root_section">
+      <item ident="q1" title="Q1">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>multiple_choice_question</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation>
+          <material><mattext texttype="text/html">&lt;p&gt;Pick&lt;/p&gt;</mattext></material>
+          <response_lid ident="response1" rcardinality="Single">
+            <render_choice>
+              <response_label ident="a1"><material><mattext>A</mattext></material></response_label>
+            </render_choice>
+          </response_lid>
+        </presentation>
+        <resprocessing>
+          <respcondition continue="No">
+            <conditionvar><varequal respident="response1">a1</varequal></conditionvar>
+            <setvar varname="SCORE">100</setvar>
+          </respcondition>
+        </resprocessing>
+        <itemfeedback ident="correct_fb">
+          <material><mattext texttype="text/html">&lt;p&gt;Correct!&lt;/p&gt;</mattext></material>
+        </itemfeedback>
+      </item>
+    </section>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      const q = result.questions[0];
+      assert.equal(q.feedback?.correct, '<p>Correct!</p>');
+    });
+  });
+
   describe('multiple choice', () => {
     it('parses a multiple choice question', () => {
       const result = parser.parse(readFixture('canvas-mc.xml'));
@@ -298,6 +527,68 @@ describe('QTI12AssessmentParser', () => {
       const result = parser.parse(BASE_QTI, { assessmentMetaXml: meta });
       // No timezone → default UTC → time stays as 06:00
       assert.equal(result.meta!.showCorrectAnswersAt, '2025-09-04T06:00:00');
+    });
+  });
+
+  describe('shuffle propagation', () => {
+    const BASE_QTI = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Quiz 1">
+    <section ident="root_section">
+      <item ident="q1" title="Q1">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>multiple_choice_question</fieldentry></qtimetadatafield>
+          <qtimetadatafield><fieldlabel>points_possible</fieldlabel><fieldentry>1</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation>
+          <material><mattext texttype="text/html">&lt;p&gt;Pick one&lt;/p&gt;</mattext></material>
+          <response_lid ident="response1" rcardinality="Single">
+            <render_choice>
+              <response_label ident="a"><material><mattext>A</mattext></material></response_label>
+              <response_label ident="b"><material><mattext>B</mattext></material></response_label>
+            </render_choice>
+          </response_lid>
+        </presentation>
+        <resprocessing>
+          <respcondition><conditionvar><varequal respident="response1">a</varequal></conditionvar><setvar>100</setvar></respcondition>
+        </resprocessing>
+      </item>
+    </section>
+  </assessment>
+</questestinterop>`;
+
+    it('sets shuffleAnswers=true on all questions when assessment meta has shuffle_answers=true', () => {
+      const meta = `<?xml version="1.0"?><quiz xmlns="http://canvas.instructure.com/xsd/cccv1p0">
+        <shuffle_answers>true</shuffle_answers>
+        <allowed_attempts>-1</allowed_attempts>
+      </quiz>`;
+      const result = parser.parse(BASE_QTI, { assessmentMetaXml: meta });
+      assert.isTrue(result.questions[0].shuffleAnswers);
+    });
+
+    it('leaves shuffleAnswers undefined on questions when shuffle_answers is not set', () => {
+      const meta = `<?xml version="1.0"?><quiz xmlns="http://canvas.instructure.com/xsd/cccv1p0">
+        <allowed_attempts>-1</allowed_attempts>
+      </quiz>`;
+      const result = parser.parse(BASE_QTI, { assessmentMetaXml: meta });
+      assert.isUndefined(result.questions[0].shuffleAnswers);
+    });
+
+    it('parses shuffle_questions=true into meta.shuffleQuestions', () => {
+      const meta = `<?xml version="1.0"?><quiz xmlns="http://canvas.instructure.com/xsd/cccv1p0">
+        <shuffle_questions>true</shuffle_questions>
+        <allowed_attempts>-1</allowed_attempts>
+      </quiz>`;
+      const result = parser.parse(BASE_QTI, { assessmentMetaXml: meta });
+      assert.isTrue(result.meta!.shuffleQuestions);
+    });
+
+    it('leaves meta.shuffleQuestions undefined when shuffle_questions is not set', () => {
+      const meta = `<?xml version="1.0"?><quiz xmlns="http://canvas.instructure.com/xsd/cccv1p0">
+        <allowed_attempts>-1</allowed_attempts>
+      </quiz>`;
+      const result = parser.parse(BASE_QTI, { assessmentMetaXml: meta });
+      assert.isUndefined(result.meta!.shuffleQuestions);
     });
   });
 });

@@ -2,12 +2,11 @@ import type { ConversionResult, EmitOptions, OutputEmitter } from './emitters/em
 import { PLEmitter } from './emitters/pl-emitter.js';
 import type { InputParser, ParseOptions } from './parsers/parser.js';
 import { QTI12AssessmentParser } from './parsers/qti12/index.js';
-import { QTI21Parser } from './parsers/qti21/index.js';
 
 /** Options for the conversion pipeline. */
 export interface ConvertOptions extends ParseOptions, EmitOptions {}
 
-const DEFAULT_PARSERS: InputParser[] = [new QTI12AssessmentParser(), new QTI21Parser()];
+const DEFAULT_PARSERS: InputParser[] = [new QTI12AssessmentParser()];
 
 /**
  * Auto-detect format and convert questions from XML to PL output.

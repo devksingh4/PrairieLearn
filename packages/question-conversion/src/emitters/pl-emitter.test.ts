@@ -26,6 +26,7 @@ function makeQuestion(overrides: Partial<IRQuestion> = {}): IRQuestion {
       ],
     },
     assets: new Map(),
+    gradingMethod: 'Internal',
     ...overrides,
   };
 }
@@ -83,8 +84,9 @@ describe('PLEmitter', () => {
     );
   });
 
-  it('generates fill-in-blanks HTML with server.py', () => {
+  it('generates fill-in-blanks HTML with inline inputs and server.py', () => {
     const q = makeQuestion({
+      promptHtml: '<p>The capital is [capital1].</p>',
       body: {
         type: 'fill-in-blanks',
         blanks: [{ id: 'capital1', correctText: 'bogota', ignoreCase: true }],
@@ -93,7 +95,7 @@ describe('PLEmitter', () => {
     const result = emitter.emit(makeAssessment([q]));
     assert.equal(
       result.questions[0].questionHtml,
-      '<pl-question-panel>\n<p>What is 2+2?</p>\n</pl-question-panel>\n\n<p><strong>capital1:</strong></p>\n<pl-string-input answers-name="capital1" remove-leading-trailing="true" ignore-case="true"></pl-string-input>',
+      '<pl-question-panel>\n<p>The capital is <pl-string-input answers-name="capital1" remove-leading-trailing="true" ignore-case="true"></pl-string-input>.</p>\n</pl-question-panel>\n',
     );
     assert.equal(
       result.questions[0].serverPy,
@@ -101,14 +103,112 @@ describe('PLEmitter', () => {
     );
   });
 
+  it('generates fill-in-blanks HTML with multiple inline inputs', () => {
+    const q = makeQuestion({
+      promptHtml: '<p>Colombia: [capital1], Estonia: [capital2].</p>',
+      body: {
+        type: 'fill-in-blanks',
+        blanks: [
+          { id: 'capital1', correctText: 'bogota', ignoreCase: true },
+          { id: 'capital2', correctText: 'tallinn', ignoreCase: true },
+        ],
+      },
+    });
+    const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+    assert.include(html, 'answers-name="capital1"');
+    assert.include(html, 'answers-name="capital2"');
+    // Both inputs should be inside pl-question-panel, not below it
+    const panelEnd = html.indexOf('</pl-question-panel>');
+    assert.isAbove(html.indexOf('answers-name="capital1"'), 0);
+    assert.isBelow(html.indexOf('answers-name="capital1"'), panelEnd);
+    assert.isBelow(html.indexOf('answers-name="capital2"'), panelEnd);
+  });
+
+  describe('feedback rendering', () => {
+    it('emits pl-answer-panel with both correct and incorrect feedback', () => {
+      const q = makeQuestion({
+        feedback: { correct: '<p>Well done!</p>', incorrect: '<p>Try again.</p>' },
+      });
+      const result = emitter.emit(makeAssessment([q]));
+      const html = result.questions[0].questionHtml;
+      assert.include(html, '<pl-answer-panel>');
+      assert.include(html, '{{{feedback.general}}}');
+    });
+
+    it('emits grade() in server.py with correct and incorrect branches', () => {
+      const q = makeQuestion({
+        feedback: { correct: '<p>Correct!</p>', incorrect: '<p>Wrong.</p>' },
+      });
+      const serverPy = emitter.emit(makeAssessment([q])).questions[0].serverPy;
+      assert.include(serverPy, 'def grade(data):');
+      assert.include(serverPy, 'data["score"] >= 1.0');
+      assert.include(serverPy, '"<p>Correct!</p>"');
+      assert.include(serverPy, '"<p>Wrong.</p>"');
+    });
+
+    it('emits grade() with only correct branch when incorrect is absent', () => {
+      const q = makeQuestion({ feedback: { correct: '<p>Correct!</p>' } });
+      const serverPy = emitter.emit(makeAssessment([q])).questions[0].serverPy;
+      assert.include(serverPy, 'data["score"] >= 1.0');
+      assert.notInclude(serverPy, 'else');
+    });
+
+    it('emits grade() with only incorrect branch when correct is absent', () => {
+      const q = makeQuestion({ feedback: { incorrect: '<p>Wrong.</p>' } });
+      const serverPy = emitter.emit(makeAssessment([q])).questions[0].serverPy;
+      assert.include(serverPy, 'data["score"] < 1.0');
+      assert.notInclude(serverPy, 'else');
+    });
+
+    it('emits feedback attribute on pl-answer elements for perAnswer feedback', () => {
+      const q = makeQuestion({
+        body: {
+          type: 'multiple-choice',
+          choices: [
+            { id: 'a', html: 'True', correct: true },
+            { id: 'b', html: 'False', correct: false },
+          ],
+        },
+        feedback: {
+          perAnswer: { True: '<p>Correct!</p>', False: '<p>Wrong.</p>' },
+        },
+      });
+      const result = emitter.emit(makeAssessment([q]));
+      const html = result.questions[0].questionHtml;
+      const serverPy = result.questions[0].serverPy ?? '';
+      assert.include(html, 'feedback="&lt;p&gt;Correct!&lt;/p&gt;"');
+      assert.include(html, 'feedback="&lt;p&gt;Wrong.&lt;/p&gt;"');
+      assert.notInclude(html, '<pl-answer-panel>');
+      assert.notInclude(serverPy, 'grade');
+    });
+
+    it('emits no pl-answer-panel and no grade() when feedback is absent', () => {
+      const q = makeQuestion();
+      const result = emitter.emit(makeAssessment([q]));
+      assert.notInclude(result.questions[0].questionHtml, 'pl-answer-panel');
+      assert.notInclude(result.questions[0].serverPy ?? '', 'grade');
+    });
+
+    it('emits generate() and grade() together for numeric questions with feedback', () => {
+      const q = makeQuestion({
+        body: { type: 'numeric', answer: { correctValue: 42 } },
+        feedback: { correct: '<p>Yes!</p>', incorrect: '<p>No.</p>' },
+      });
+      const serverPy = emitter.emit(makeAssessment([q])).questions[0].serverPy;
+      assert.include(serverPy, 'def generate(data):');
+      assert.include(serverPy, 'def grade(data):');
+    });
+  });
+
   it('generates rich-text HTML with manual grading', () => {
     const q = makeQuestion({
       body: { type: 'rich-text', gradingMethod: 'Manual' },
+      gradingMethod: 'Manual',
     });
     const result = emitter.emit(makeAssessment([q]));
     assert.equal(
       result.questions[0].questionHtml,
-      '<pl-question-panel>\n<p>What is 2+2?</p>\n</pl-question-panel>\n\n<pl-rich-text-editor answers-name="answer"></pl-rich-text-editor>',
+      '<pl-question-panel>\n<p>What is 2+2?</p>\n</pl-question-panel>\n\n<pl-rich-text-editor file-name="answer.html"></pl-rich-text-editor>',
     );
     assert.equal(result.questions[0].infoJson.gradingMethod, 'Manual');
   });
@@ -255,9 +355,14 @@ describe('PLEmitter', () => {
       assert.isUndefined(rules[1].credit);
     });
 
-    it('sets shuffleQuestions from meta', () => {
-      const result = emitter.emit(makeAssessment([makeQuestion()], { shuffleAnswers: true }));
+    it('sets shuffleQuestions from meta.shuffleQuestions', () => {
+      const result = emitter.emit(makeAssessment([makeQuestion()], { shuffleQuestions: true }));
       assert.isTrue(result.assessment.infoJson.shuffleQuestions);
+    });
+
+    it('does not set shuffleQuestions from meta.shuffleAnswers', () => {
+      const result = emitter.emit(makeAssessment([makeQuestion()], { shuffleAnswers: true }));
+      assert.isUndefined(result.assessment.infoJson.shuffleQuestions);
     });
 
     it('sets text from descriptionHtml', () => {
@@ -265,6 +370,56 @@ describe('PLEmitter', () => {
         makeAssessment([makeQuestion()], { descriptionHtml: '<p>Instructions</p>' }),
       );
       assert.equal(result.assessment.infoJson.text, '<p>Instructions</p>');
+    });
+  });
+
+  describe('shuffleAnswers on questions', () => {
+    it('emits fixed-order="false" on multiple-choice when shuffleAnswers is true', () => {
+      const q = makeQuestion({ shuffleAnswers: true });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, 'fixed-order="false"');
+    });
+
+    it('emits fixed-order="true" on multiple-choice when shuffleAnswers is false', () => {
+      const q = makeQuestion({ shuffleAnswers: false });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, 'fixed-order="true"');
+    });
+
+    it('emits fixed-order="true" on multiple-choice when shuffleAnswers is undefined', () => {
+      const q = makeQuestion({ shuffleAnswers: undefined });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, 'fixed-order="true"');
+    });
+
+    it('emits fixed-order="false" on checkbox when shuffleAnswers is true', () => {
+      const q = makeQuestion({
+        body: {
+          type: 'checkbox',
+          choices: [
+            { id: 'a', html: 'A', correct: true },
+            { id: 'b', html: 'B', correct: false },
+          ],
+        },
+        shuffleAnswers: true,
+      });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, 'fixed-order="false"');
+    });
+
+    it('emits fixed-order="true" on checkbox when shuffleAnswers is false', () => {
+      const q = makeQuestion({
+        body: {
+          type: 'checkbox',
+          choices: [
+            { id: 'a', html: 'A', correct: true },
+            { id: 'b', html: 'B', correct: false },
+          ],
+        },
+        shuffleAnswers: false,
+      });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, 'fixed-order="true"');
     });
   });
 

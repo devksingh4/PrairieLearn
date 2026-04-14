@@ -41,6 +41,12 @@ export interface IRFeedback {
   correct?: string;
   incorrect?: string;
   general?: string;
+  /**
+   * Per-answer feedback keyed by the answer display text (matches what PL stores
+   * in data['submitted_answers']). Used for multi-select questions where multiple
+   * feedbacks may need to be concatenated based on which answers were selected.
+   */
+  perAnswer?: Record<string, string>;
 }
 
 /** Reference to an asset (image, file) needed by the question. */
@@ -62,6 +68,8 @@ export type IRQuestionBody =
   | { type: 'rich-text'; gradingMethod: 'Manual' }
   | { type: 'text-only' };
 
+export type IRQuestionGradingMethod = "External" | "Internal" | "Manual" | undefined;
+
 /** A single converted question in IR form. */
 export interface IRQuestion {
   sourceId: string;
@@ -72,6 +80,8 @@ export interface IRQuestion {
   feedback?: IRFeedback;
   assets: Map<string, AssetReference>;
   metadata?: Record<string, string>;
+  shuffleAnswers?: boolean;
+  gradingMethod: IRQuestionGradingMethod;
 }
 
 /** A group of questions within an assessment (maps to a PL zone). */
@@ -88,6 +98,8 @@ export interface IRAssessmentMeta {
   maxAttempts?: number;
   /** Whether answer choices should be shuffled. */
   shuffleAnswers?: boolean;
+  /** Whether the order of questions should be shuffled. */
+  shuffleQuestions?: boolean;
   /** Total points possible for the assessment. */
   pointsPossible?: number;
   /** Assessment description/instructions HTML. */

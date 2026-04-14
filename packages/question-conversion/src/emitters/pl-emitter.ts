@@ -1,6 +1,7 @@
 import type {
   IRAssessment,
   IRAssessmentMeta,
+  IRBlank,
   IRChoice,
   IRQuestion,
   IRQuestionBody,
@@ -76,10 +77,13 @@ export class PLEmitter implements OutputEmitter {
       }
     } else {
       // Single zone with all questions
-      const zoneQuestions: PLAssessmentQuestion[] = questions.map((q) => ({
-        id: prefix ? `${prefix}/${q.directoryName}` : q.directoryName,
-        autoPoints: questionBySourceId.get(q.sourceId)?.points,
-      }));
+      const zoneQuestions: PLAssessmentQuestion[] = questions.map((q) => {
+        const qIr = questionBySourceId.get(q.sourceId);
+        return {
+          id: prefix ? `${prefix}/${q.directoryName}` : q.directoryName,
+          ...(qIr?.body.type === "rich-text" ? {manualPoints: qIr.points} : {autoPoints: qIr?.points }),
+        }
+      });
       zones.push({ title: 'Questions', questions: zoneQuestions });
     }
 
@@ -102,7 +106,7 @@ export class PLEmitter implements OutputEmitter {
       infoJson.text = meta.descriptionHtml;
     }
 
-    if (meta?.shuffleAnswers) {
+    if (meta?.shuffleQuestions) {
       infoJson.shuffleQuestions = true;
     }
 
@@ -156,7 +160,7 @@ export class PLEmitter implements OutputEmitter {
       if (dir) {
         result.push({
           id: prefix ? `${prefix}/${dir}` : dir,
-          autoPoints: q.points,
+          ...(q.body.type === "rich-text" ? {manualPoints: q.points} : {autoPoints: q.points}),
         });
       }
     }
@@ -214,10 +218,8 @@ export class PLEmitter implements OutputEmitter {
       singleVariant: true,
     };
 
-    // Set grading method for manual-graded questions
-    if (question.body.type === 'rich-text') {
-      infoJson.gradingMethod = 'Manual';
-    }
+    infoJson.gradingMethod = question.gradingMethod;
+  
 
     const questionHtml = this.renderQuestionHtml(question);
     const serverPy = this.renderServerPy(question);
@@ -249,31 +251,59 @@ export class PLEmitter implements OutputEmitter {
   }
 
   private renderQuestionHtml(question: IRQuestion): string {
+    let promptHtml = question.promptHtml;
+
+    // For fill-in-blanks, embed <pl-string-input> elements inline in the prompt
+    // where [blankId] placeholders appear, rather than listing them separately below.
+    if (question.body.type === 'fill-in-blanks') {
+      promptHtml = this.inlineFillInBlanks(promptHtml, question.body.blanks);
+    }
+
     const parts: string[] = [
       '<pl-question-panel>',
-      question.promptHtml,
+      promptHtml,
       '</pl-question-panel>',
       '',
     ];
 
-    const bodyHtml = this.renderBodyHtml(question.body);
+    const bodyHtml = this.renderBodyHtml(question.body, question.shuffleAnswers, question.feedback?.perAnswer);
     if (bodyHtml) {
       parts.push(bodyHtml);
+    }
+
+    // Only add <pl-answer-panel> for global correct/incorrect feedback (server.py grade()).
+    // Per-answer feedback is emitted as feedback="..." attributes on <pl-answer> elements.
+    const fb = question.feedback;
+    if (fb?.correct || fb?.incorrect) {
+      parts.push('');
+      parts.push('<pl-answer-panel>');
+      parts.push('{{{feedback.general}}}');
+      parts.push('</pl-answer-panel>');
     }
 
     return parts.join('\n');
   }
 
-  private renderBodyHtml(body: IRQuestionBody): string {
+  private inlineFillInBlanks(promptHtml: string, blanks: IRBlank[]): string {
+    let result = promptHtml;
+    for (const blank of blanks) {
+      const input = `<pl-string-input answers-name="${escapeAttr(blank.id)}" remove-leading-trailing="true"${blank.ignoreCase ? ' ignore-case="true"' : ''}></pl-string-input>`;
+      result = result.replaceAll(`[${blank.id}]`, input);
+    }
+    return result;
+  }
+
+  private renderBodyHtml(body: IRQuestionBody, shuffleAnswers?: boolean, perAnswer?: Record<string, string>): string {
     switch (body.type) {
       case 'multiple-choice':
-        return this.renderMultipleChoice(body.choices, body.display);
+        return this.renderMultipleChoice(body.choices, body.display, shuffleAnswers, perAnswer);
       case 'checkbox':
-        return this.renderCheckbox(body.choices);
+        return this.renderCheckbox(body.choices, shuffleAnswers, perAnswer);
       case 'matching':
         return this.renderMatching(body);
       case 'fill-in-blanks':
-        return this.renderFillInBlanks(body);
+        // Inputs are inlined directly into the prompt in renderQuestionHtml.
+        return '';
       case 'numeric':
         return '<pl-number-input answers-name="answer"></pl-number-input>';
       case 'string-input':
@@ -281,7 +311,7 @@ export class PLEmitter implements OutputEmitter {
       case 'ordering':
         return this.renderOrdering(body);
       case 'rich-text':
-        return '<pl-rich-text-editor answers-name="answer"></pl-rich-text-editor>';
+        return '<pl-rich-text-editor file-name="answer.html"></pl-rich-text-editor>';
       case 'text-only':
         return '';
       default: {
@@ -290,7 +320,7 @@ export class PLEmitter implements OutputEmitter {
     }
   }
 
-  private renderMultipleChoice(choices: IRChoice[], display?: 'dropdown'): string {
+  private renderMultipleChoice(choices: IRChoice[], display?: 'dropdown', shuffleAnswers?: boolean, perAnswer?: Record<string, string>): string {
     if (display === 'dropdown') {
       const lines = ['<pl-dropdown answers-name="answer">'];
       for (const choice of choices) {
@@ -302,18 +332,24 @@ export class PLEmitter implements OutputEmitter {
       return lines.join('\n');
     }
 
-    const lines = ['<pl-multiple-choice answers-name="answer" fixed-order="true">'];
+    const fixedOrder = shuffleAnswers ? 'false' : 'true';
+    const lines = [`<pl-multiple-choice answers-name="answer" fixed-order="${fixedOrder}">`];
     for (const choice of choices) {
-      lines.push(`  <pl-answer correct="${choice.correct}">${escapeHtml(choice.html)}</pl-answer>`);
+      const fb = perAnswer?.[choice.html];
+      const fbAttr = fb ? ` feedback="${escapeAttr(fb)}"` : '';
+      lines.push(`  <pl-answer correct="${choice.correct}"${fbAttr}>${escapeHtml(choice.html)}</pl-answer>`);
     }
     lines.push('</pl-multiple-choice>');
     return lines.join('\n');
   }
 
-  private renderCheckbox(choices: IRChoice[]): string {
-    const lines = ['<pl-checkbox answers-name="answer" fixed-order="true">'];
+  private renderCheckbox(choices: IRChoice[], shuffleAnswers?: boolean, perAnswer?: Record<string, string>): string {
+    const fixedOrder = shuffleAnswers ? 'false' : 'true';
+    const lines = [`<pl-checkbox answers-name="answer" fixed-order="${fixedOrder}">`];
     for (const choice of choices) {
-      lines.push(`  <pl-answer correct="${choice.correct}">${escapeHtml(choice.html)}</pl-answer>`);
+      const fb = perAnswer?.[choice.html];
+      const fbAttr = fb ? ` feedback="${escapeAttr(fb)}"` : '';
+      lines.push(`  <pl-answer correct="${choice.correct}"${fbAttr}>${escapeHtml(choice.html)}</pl-answer>`);
     }
     lines.push('</pl-checkbox>');
     return lines.join('\n');
@@ -333,15 +369,6 @@ export class PLEmitter implements OutputEmitter {
     return lines.join('\n');
   }
 
-  private renderFillInBlanks(body: Extract<IRQuestionBody, { type: 'fill-in-blanks' }>): string {
-    return body.blanks
-      .map(
-        (blank) =>
-          `<p><strong>${escapeHtml(blank.id)}:</strong></p>\n<pl-string-input answers-name="${escapeAttr(blank.id)}" remove-leading-trailing="true"${blank.ignoreCase ? ' ignore-case="true"' : ''}></pl-string-input>`,
-      )
-      .join('\n');
-  }
-
   private renderOrdering(body: Extract<IRQuestionBody, { type: 'ordering' }>): string {
     const lines = ['<pl-order-blocks answers-name="answer">'];
     for (const item of body.correctOrder) {
@@ -352,8 +379,19 @@ export class PLEmitter implements OutputEmitter {
   }
 
   private renderServerPy(question: IRQuestion): string {
-    const body = question.body;
+    const parts: string[] = [];
 
+    const generateFn = this.renderGenerateFn(question);
+    if (generateFn) parts.push(generateFn);
+
+    const gradeFn = this.renderGradeFn(question);
+    if (gradeFn) parts.push(gradeFn);
+
+    return parts.join('\n');
+  }
+
+  private renderGenerateFn(question: IRQuestion): string {
+    const body = question.body;
     switch (body.type) {
       case 'numeric':
         return [
@@ -380,10 +418,32 @@ export class PLEmitter implements OutputEmitter {
         ].join('\n');
 
       default:
-        // MC, checkbox, matching, ordering, rich-text, text-only
-        // don't need server.py (answers are in the HTML)
         return '';
     }
+  }
+
+  private renderGradeFn(question: IRQuestion): string {
+    const { correct, incorrect } = question.feedback ?? {};
+    // Per-answer feedback is emitted as feedback="..." on <pl-answer> elements, not in server.py.
+
+    // Global correct/incorrect feedback fallback.
+    if (!correct && !incorrect) return '';
+
+    const lines = ['def grade(data):'];
+    if (correct && incorrect) {
+      lines.push(`    if data["score"] >= 1.0:`);
+      lines.push(`        data["feedback"]["general"] = ${JSON.stringify(correct)}`);
+      lines.push(`    else:`);
+      lines.push(`        data["feedback"]["general"] = ${JSON.stringify(incorrect)}`);
+    } else if (correct) {
+      lines.push(`    if data["score"] >= 1.0:`);
+      lines.push(`        data["feedback"]["general"] = ${JSON.stringify(correct)}`);
+    } else {
+      lines.push(`    if data["score"] < 1.0:`);
+      lines.push(`        data["feedback"]["general"] = ${JSON.stringify(incorrect)}`);
+    }
+    lines.push('');
+    return lines.join('\n');
   }
 
   private collectClientFiles(question: IRQuestion): Map<string, Buffer | string> {

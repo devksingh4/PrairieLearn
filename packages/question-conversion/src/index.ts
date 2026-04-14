@@ -4,7 +4,6 @@ export type { ConvertOptions } from './pipeline.js';
 
 // Parsers
 export { QTI12AssessmentParser } from './parsers/qti12/index.js';
-export { QTI21Parser } from './parsers/qti21/index.js';
 export type { InputParser, ParseOptions } from './parsers/parser.js';
 
 // Emitters
@@ -20,7 +19,6 @@ export type {
 export { TransformRegistry } from './transforms/transform-registry.js';
 export type { TransformHandler, TransformResult } from './transforms/transform-registry.js';
 export { createQTI12Registry } from './transforms/qti12/index.js';
-export { createQTI21Registry } from './transforms/qti21/index.js';
 
 // Types
 export type {

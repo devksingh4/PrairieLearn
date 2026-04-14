@@ -51,6 +51,8 @@ const CC_PROFILE_TO_QUESTION_TYPE: Record<string, string> = {
   'cc.order.v0p1': 'ordering_question',
 };
 
+const MANUAL_GRADING_QUESTION_TYPES = ["rich-text"];
+
 /**
  * Parser for QTI 1.2 assessment profile XML (Canvas quiz/course exports).
  *
@@ -86,7 +88,10 @@ export class QTI12AssessmentParser implements InputParser {
 
     const parsedAssessment = this.buildParsedAssessment(assessment);
     const meta = this.parseAssessmentMeta(assessment, options);
-    const { questions, zones } = this.buildQuestionsAndZones(assessment, options);
+    const { questions, zones } = this.buildQuestionsAndZones(assessment, {
+      parseOptions: options,
+      shuffleAnswers: meta.shuffleAnswers,
+    });
 
     return {
       sourceId: parsedAssessment.ident,
@@ -161,6 +166,11 @@ export class QTI12AssessmentParser implements InputParser {
     const shuffleAnswers = textContent(quiz['shuffle_answers']);
     if (shuffleAnswers === 'true') {
       meta.shuffleAnswers = true;
+    }
+
+    const shuffleQuestions = textContent(quiz['shuffle_questions']);
+    if (shuffleQuestions === 'true') {
+      meta.shuffleQuestions = true;
     }
 
     // allowed_attempts: -1 = unlimited, positive = specific count
@@ -244,7 +254,7 @@ export class QTI12AssessmentParser implements InputParser {
    */
   private buildQuestionsAndZones(
     assessment: Record<string, unknown>,
-    options?: ParseOptions,
+    { parseOptions, shuffleAnswers }: { parseOptions?: ParseOptions; shuffleAnswers?: boolean },
   ): { questions: IRQuestion[]; zones: IRZone[] } {
     const allQuestions: IRQuestion[] = [];
     const zones: IRZone[] = [];
@@ -271,7 +281,7 @@ export class QTI12AssessmentParser implements InputParser {
           const items = this.collectItems(subRec);
           const questions = items
             .map((item) => this.parseItem(item))
-            .map((item) => this.transformItem(item, options))
+            .map((item) => this.transformItem(item, { parseOptions, shuffleAnswers }))
             .filter((q): q is IRQuestion => q !== null);
           if (questions.length > 0) {
             zones.push({ title: zoneTitle || 'Questions', questions });
@@ -286,7 +296,7 @@ export class QTI12AssessmentParser implements InputParser {
         if (directItems.length > 0) {
           const questions = directItems
             .map((item) => this.parseItem(item))
-            .map((item) => this.transformItem(item, options))
+            .map((item) => this.transformItem(item, { parseOptions, shuffleAnswers }))
             .filter((q): q is IRQuestion => q !== null);
           if (questions.length > 0) {
             zones.unshift({ title: 'Questions', questions });
@@ -298,7 +308,7 @@ export class QTI12AssessmentParser implements InputParser {
         const items = this.collectItems(rootRec);
         const questions = items
           .map((item) => this.parseItem(item))
-          .map((item) => this.transformItem(item, options))
+          .map((item) => this.transformItem(item, { parseOptions, shuffleAnswers }))
           .filter((q): q is IRQuestion => q !== null);
         allQuestions.push(...questions);
       }
@@ -410,12 +420,13 @@ export class QTI12AssessmentParser implements InputParser {
       if (cond == null || typeof cond !== 'object') continue;
       const condRec = cond as Record<string, unknown>;
 
-      // Only look at conditions that set SCORE to 100 (or any positive value)
+      // Only treat a condition as identifying a correct answer if it explicitly
+      // sets a positive score. Conditions with no setvar are feedback-only
+      // (e.g. displayfeedback) and must not be treated as correct conditions.
       const setvar = condRec['setvar'];
-      if (setvar != null) {
-        const scoreText = textContent(setvar);
-        if (scoreText && Number.parseFloat(scoreText) <= 0) continue;
-      }
+      if (setvar == null) continue;
+      const scoreText = textContent(setvar);
+      if (!scoreText || Number.parseFloat(scoreText) <= 0) continue;
 
       const conditionvar = condRec['conditionvar'] as Record<string, unknown> | undefined;
       if (!conditionvar) continue;
@@ -473,15 +484,22 @@ export class QTI12AssessmentParser implements InputParser {
       if (fb == null || typeof fb !== 'object') continue;
       const fbRec = fb as Record<string, unknown>;
       const ident = attr(fbRec, 'ident');
-      const text = textContent(getNestedValue(fbRec, 'flow_mat', 'material', 'mattext'));
-      if (ident) {
-        feedbacks.set(ident, unescapeHtml(text));
-      }
+      if (!ident) continue;
+
+      // Canvas uses flow_mat → material → mattext; some exports use material → mattext directly.
+      const text =
+        textContent(getNestedValue(fbRec, 'flow_mat', 'material', 'mattext')) ||
+        textContent(getNestedValue(fbRec, 'material', 'mattext'));
+
+      feedbacks.set(ident, unescapeHtml(text));
     }
     return feedbacks;
   }
 
-  private transformItem(item: QTI12ParsedItem, options?: ParseOptions): IRQuestion | null {
+  private transformItem(
+    item: QTI12ParsedItem,
+    { parseOptions, shuffleAnswers }: { parseOptions?: ParseOptions; shuffleAnswers?: boolean },
+  ): IRQuestion | null {
     const handler = this.registry.get(item.questionType);
     if (!handler) {
       // Skip unsupported question types
@@ -520,13 +538,37 @@ export class QTI12AssessmentParser implements InputParser {
       }
     }
 
-    // Build feedback
+    // Build feedback.
+    // Canvas exports use two patterns:
+    //   1. Global idents: correct_fb / general_incorrect_fb
+    //   2. Per-answer idents: {answerLabelIdent}_fb (e.g. "7877_fb")
+    //
+    // Per-answer feedback is preferred: it supports multi-select questions where
+    // each selected answer's feedback needs to be concatenated at grade time.
+    // Global idents are kept as a fallback for questions that don't use per-answer.
     const feedback: IRFeedback = {};
-    const correctFb = item.feedbacks.get('correct_fb');
-    const incorrectFb = item.feedbacks.get('general_incorrect_fb');
-    if (correctFb) feedback.correct = correctFb;
-    if (incorrectFb) feedback.incorrect = incorrectFb;
-    const hasFeedback = feedback.correct || feedback.incorrect;
+
+    const correctFbText = item.feedbacks.get('correct_fb');
+    const incorrectFbText = item.feedbacks.get('general_incorrect_fb');
+    if (correctFbText) feedback.correct = correctFbText;
+    if (incorrectFbText) feedback.incorrect = incorrectFbText;
+
+    // Collect per-answer feedback: any {labelIdent}_fb entry gets keyed by the
+    // answer display text so the emitter can match against submitted_answers.
+    const perAnswer: Record<string, string> = {};
+    for (const lid of item.responseLids) {
+      for (const label of lid.labels) {
+        const fb = item.feedbacks.get(`${label.ident}_fb`);
+        if (fb) {
+          perAnswer[label.text] = fb;
+        }
+      }
+    }
+    if (Object.keys(perAnswer).length > 0) {
+      feedback.perAnswer = perAnswer;
+    }
+
+    const hasFeedback = feedback.correct || feedback.incorrect || feedback.perAnswer;
 
     return {
       sourceId: item.ident,
@@ -538,8 +580,10 @@ export class QTI12AssessmentParser implements InputParser {
       assets,
       metadata: {
         ...item.metadata,
-        ...(options?.defaultTopic ? { topic: options.defaultTopic } : {}),
+        ...(parseOptions?.defaultTopic ? { topic: parseOptions.defaultTopic } : {}),
       },
+      shuffleAnswers,
+      gradingMethod: MANUAL_GRADING_QUESTION_TYPES.includes(result.body.type) ? "Manual" : "Internal"
     };
   }
 }

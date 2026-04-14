@@ -6,7 +6,6 @@ import { assert, describe, it } from 'vitest';
 import { convert } from './pipeline.js';
 
 const QTI12_FIXTURES = path.join(import.meta.dirname, 'test-fixtures/qti12');
-const QTI21_FIXTURES = path.join(import.meta.dirname, 'test-fixtures/qti21');
 
 describe('convert (integration)', () => {
   describe('QTI 1.2 assessment', () => {
@@ -65,23 +64,11 @@ describe('convert (integration)', () => {
       const q = result.questions[0];
       assert.equal(
         q.questionHtml,
-        '<pl-question-panel>\n<p>The capital of Colombia is [capital1] and Estonia is [capital2].</p>\n</pl-question-panel>\n\n<p><strong>capital1:</strong></p>\n<pl-string-input answers-name="capital1" remove-leading-trailing="true" ignore-case="true"></pl-string-input>\n<p><strong>capital2:</strong></p>\n<pl-string-input answers-name="capital2" remove-leading-trailing="true" ignore-case="true"></pl-string-input>',
+        '<pl-question-panel>\n<p>The capital of Colombia is <pl-string-input answers-name="capital1" remove-leading-trailing="true" ignore-case="true"></pl-string-input> and Estonia is <pl-string-input answers-name="capital2" remove-leading-trailing="true" ignore-case="true"></pl-string-input>.</p>\n</pl-question-panel>\n',
       );
       assert.equal(
         q.serverPy,
         'def generate(data):\n    data["correct_answers"]["capital1"] = "bogota"\n    data["correct_answers"]["capital2"] = "tallinn"\n',
-      );
-    });
-  });
-
-  describe('QTI 2.1', () => {
-    it('converts a choice interaction end-to-end', () => {
-      const xml = readFileSync(path.join(QTI21_FIXTURES, 'choice-interaction.xml'), 'utf-8');
-      const result = convert(xml);
-      assert.equal(result.questions.length, 1);
-      assert.equal(
-        result.questions[0].questionHtml,
-        '<pl-question-panel>\nWhat is the capital of France?\n</pl-question-panel>\n\n<pl-multiple-choice answers-name="answer" fixed-order="true">\n  <pl-answer correct="false">London</pl-answer>\n  <pl-answer correct="true">Paris</pl-answer>\n  <pl-answer correct="false">Berlin</pl-answer>\n</pl-multiple-choice>',
       );
     });
   });
