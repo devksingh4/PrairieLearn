@@ -7,6 +7,7 @@ import type {
   IRAssessment,
   IRAssessmentMeta,
   IRFeedback,
+  IRParseWarning,
   IRQuestion,
   IRZone,
 } from '../../types/ir.js';
@@ -51,7 +52,7 @@ const CC_PROFILE_TO_QUESTION_TYPE: Record<string, string> = {
   'cc.order.v0p1': 'ordering_question',
 };
 
-const MANUAL_GRADING_QUESTION_TYPES = new Set(['rich-text']);
+const MANUAL_GRADING_QUESTION_TYPES = new Set(['rich-text', 'file-upload']);
 
 /**
  * Parser for QTI 1.2 assessment profile XML (Canvas quiz/course exports).
@@ -88,9 +89,11 @@ export class QTI12AssessmentParser implements InputParser {
 
     const parsedAssessment = this.buildParsedAssessment(assessment);
     const meta = this.parseAssessmentMeta(assessment, options);
-    const { questions, zones } = this.buildQuestionsAndZones(assessment, {
+    const allowedExtensions = this.parseAllowedExtensions(options?.assessmentMetaXml);
+    const { questions, zones, parseWarnings } = this.buildQuestionsAndZones(assessment, {
       parseOptions: options,
       shuffleAnswers: meta.shuffleAnswers,
+      allowedExtensions,
     });
 
     return {
@@ -99,6 +102,7 @@ export class QTI12AssessmentParser implements InputParser {
       questions,
       zones: zones.length > 0 ? zones : undefined,
       meta,
+      parseWarnings: parseWarnings.length > 0 ? parseWarnings : undefined,
     };
   }
 
@@ -249,15 +253,44 @@ export class QTI12AssessmentParser implements InputParser {
   }
 
   /**
+   * Parse allowed file extensions from Canvas assessment_meta.xml.
+   * Canvas stores these on the <assignment><allowed_extensions> element as a
+   * comma-separated list (e.g. "doc,docx,pdf"). Returns undefined when absent or empty.
+   */
+  private parseAllowedExtensions(assessmentMetaXml?: string): string[] | undefined {
+    if (!assessmentMetaXml) return undefined;
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = parseXml(assessmentMetaXml);
+    } catch {
+      return undefined;
+    }
+    const quiz = (parsed['quiz'] ?? parsed) as Record<string, unknown>;
+    const assignment = quiz['assignment'] as Record<string, unknown> | undefined;
+    if (!assignment) return undefined;
+    const raw = textContent(assignment['allowed_extensions']).trim();
+    if (!raw) return undefined;
+    return raw
+      .split(',')
+      .map((ext) => ext.trim())
+      .filter(Boolean);
+  }
+
+  /**
    * Build flat question list and zone structure from sections.
    * Named sub-sections under root_section become zones.
    */
   private buildQuestionsAndZones(
     assessment: Record<string, unknown>,
-    { parseOptions, shuffleAnswers }: { parseOptions?: ParseOptions; shuffleAnswers?: boolean },
-  ): { questions: IRQuestion[]; zones: IRZone[] } {
+    {
+      parseOptions,
+      shuffleAnswers,
+      allowedExtensions,
+    }: { parseOptions?: ParseOptions; shuffleAnswers?: boolean; allowedExtensions?: string[] },
+  ): { questions: IRQuestion[]; zones: IRZone[]; parseWarnings: IRParseWarning[] } {
     const allQuestions: IRQuestion[] = [];
     const zones: IRZone[] = [];
+    const parseWarnings: IRParseWarning[] = [];
 
     const rootSections = ensureArray(assessment['section'] as unknown);
     for (const rootSection of rootSections) {
@@ -278,13 +311,20 @@ export class QTI12AssessmentParser implements InputParser {
           if (subSection == null || typeof subSection !== 'object') continue;
           const subRec = subSection as Record<string, unknown>;
           const zoneTitle = attr(subRec, 'title');
+          const sectionPoints = this.readPointsPerItem(subRec);
+          const selectionNumber = this.readSelectionNumber(subRec);
           const items = this.collectItems(subRec);
-          const questions = items
-            .map((item) => this.parseItem(item))
-            .map((item) => this.transformItem(item, { parseOptions, shuffleAnswers }))
-            .filter((q): q is IRQuestion => q !== null);
+          const questions = this.transformItems(
+            items,
+            { parseOptions, shuffleAnswers, allowedExtensions, sectionPoints },
+            parseWarnings,
+          );
           if (questions.length > 0) {
-            zones.push({ title: zoneTitle || 'Questions', questions });
+            const numberChoose =
+              selectionNumber != null && selectionNumber < questions.length
+                ? selectionNumber
+                : undefined;
+            zones.push({ title: zoneTitle || 'Questions', questions, numberChoose });
             allQuestions.push(...questions);
           }
         }
@@ -294,10 +334,11 @@ export class QTI12AssessmentParser implements InputParser {
           (i): i is Record<string, unknown> => i != null && typeof i === 'object',
         );
         if (directItems.length > 0) {
-          const questions = directItems
-            .map((item) => this.parseItem(item))
-            .map((item) => this.transformItem(item, { parseOptions, shuffleAnswers }))
-            .filter((q): q is IRQuestion => q !== null);
+          const questions = this.transformItems(
+            directItems,
+            { parseOptions, shuffleAnswers, allowedExtensions },
+            parseWarnings,
+          );
           if (questions.length > 0) {
             zones.unshift({ title: 'Questions', questions });
             allQuestions.unshift(...questions);
@@ -305,16 +346,82 @@ export class QTI12AssessmentParser implements InputParser {
         }
       } else {
         // No named sub-sections — flat list
+        const sectionPoints = this.readPointsPerItem(rootRec);
         const items = this.collectItems(rootRec);
-        const questions = items
-          .map((item) => this.parseItem(item))
-          .map((item) => this.transformItem(item, { parseOptions, shuffleAnswers }))
-          .filter((q): q is IRQuestion => q !== null);
+        const questions = this.transformItems(
+          items,
+          { parseOptions, shuffleAnswers, allowedExtensions, sectionPoints },
+          parseWarnings,
+        );
         allQuestions.push(...questions);
       }
     }
 
-    return { questions: allQuestions, zones };
+    return { questions: allQuestions, zones, parseWarnings };
+  }
+
+  /**
+   * Read the points-per-item value from a section's <selection_ordering> block.
+   * Canvas stores the quiz-specific point value here; the item's own qtimetadata
+   * points_possible reflects the question bank default, not the quiz override.
+   */
+  private readPointsPerItem(section: Record<string, unknown>): number | undefined {
+    const selOrd = getNestedValue(
+      section,
+      'selection_ordering',
+      'selection',
+      'selection_extension',
+    );
+    if (selOrd == null || typeof selOrd !== 'object') return undefined;
+    const val = Number.parseFloat(
+      textContent((selOrd as Record<string, unknown>)['points_per_item']),
+    );
+    return Number.isNaN(val) ? undefined : val;
+  }
+
+  /**
+   * Read the selection_number from a section's <selection_ordering> block.
+   * When present and less than the number of items, Canvas randomly picks that
+   * many questions from the section — maps to PL zone numberChoose.
+   */
+  private readSelectionNumber(section: Record<string, unknown>): number | undefined {
+    const sel = getNestedValue(section, 'selection_ordering', 'selection');
+    if (sel == null || typeof sel !== 'object') return undefined;
+    const val = Number.parseInt(
+      textContent((sel as Record<string, unknown>)['selection_number']),
+      10,
+    );
+    return Number.isNaN(val) ? undefined : val;
+  }
+
+  /**
+   * Parse and transform a list of raw item elements into IR questions.
+   * Items that fail to transform are skipped; a warning is appended to `warnings`.
+   */
+  private transformItems(
+    items: Record<string, unknown>[],
+    opts: {
+      parseOptions?: ParseOptions;
+      shuffleAnswers?: boolean;
+      allowedExtensions?: string[];
+      sectionPoints?: number;
+    },
+    warnings: IRParseWarning[],
+  ): IRQuestion[] {
+    const questions: IRQuestion[] = [];
+    for (const itemEl of items) {
+      const item = this.parseItem(itemEl);
+      try {
+        const q = this.transformItem(item, opts);
+        if (q !== null) questions.push(q);
+      } catch (err) {
+        warnings.push({
+          questionId: item.ident,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    return questions;
   }
 
   /** Recursively collect all items from sections (Canvas nests items in sub-sections). */
@@ -383,6 +490,7 @@ export class QTI12AssessmentParser implements InputParser {
       correctConditions,
       feedbacks,
       metadata,
+      rawItemEl: itemEl,
     };
   }
 
@@ -498,15 +606,31 @@ export class QTI12AssessmentParser implements InputParser {
 
   private transformItem(
     item: QTI12ParsedItem,
-    { parseOptions, shuffleAnswers }: { parseOptions?: ParseOptions; shuffleAnswers?: boolean },
+    {
+      parseOptions,
+      shuffleAnswers,
+      allowedExtensions,
+      sectionPoints,
+    }: {
+      parseOptions?: ParseOptions;
+      shuffleAnswers?: boolean;
+      allowedExtensions?: string[];
+      sectionPoints?: number;
+    },
   ): IRQuestion | null {
     const handler = this.registry.get(item.questionType);
     if (!handler) {
-      // Skip unsupported question types
-      return null;
+      // Caller catches this and records it as a parse warning.
+      throw new Error(
+        `Unsupported question type "${item.questionType}" (supported: ${this.registry.supportedTypes().join(', ')})`,
+      );
     }
 
     const result = handler.transform(item);
+    const body =
+      result.body.type === 'file-upload' && allowedExtensions?.length
+        ? { type: 'file-upload' as const, allowedExtensions }
+        : result.body;
 
     // Resolve $IMS-CC-FILEBASE$ references → clientFilesQuestion/
     const { html: imsResolved, fileRefs } = resolveImsFileRefs(item.promptHtml);
@@ -574,8 +698,8 @@ export class QTI12AssessmentParser implements InputParser {
       sourceId: item.ident,
       title: item.title || item.ident,
       promptHtml: responsivePrompt,
-      body: result.body,
-      points: item.pointsPossible,
+      body,
+      points: sectionPoints ?? item.pointsPossible,
       feedback: hasFeedback ? feedback : undefined,
       assets,
       metadata: {
@@ -583,7 +707,7 @@ export class QTI12AssessmentParser implements InputParser {
         ...(parseOptions?.defaultTopic ? { topic: parseOptions.defaultTopic } : {}),
       },
       shuffleAnswers,
-      gradingMethod: MANUAL_GRADING_QUESTION_TYPES.has(result.body.type) ? 'Manual' : 'Internal',
+      gradingMethod: MANUAL_GRADING_QUESTION_TYPES.has(body.type) ? 'Manual' : 'Internal',
     };
   }
 }

@@ -25,12 +25,15 @@ export interface PLQuestionOutput {
 export interface PLAssessmentQuestion {
   id: string;
   autoPoints?: number;
+  manualPoints?: number;
 }
 
 /** A zone in a PL assessment. */
 export interface PLAssessmentZone {
   title: string;
   questions: PLAssessmentQuestion[];
+  /** If set, only this many questions are randomly chosen from the zone. */
+  numberChoose?: number;
 }
 
 /** Shape of a PrairieLearn infoAssessment.json file. */

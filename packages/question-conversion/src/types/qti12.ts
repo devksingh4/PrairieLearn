@@ -40,6 +40,8 @@ export interface QTI12ParsedItem {
   correctConditions: QTI12CorrectCondition[];
   feedbacks: Map<string, string>;
   metadata: Record<string, string>;
+  /** Raw parsed XML element — available for handlers that need data beyond standard fields. */
+  rawItemEl?: Record<string, unknown>;
 }
 
 /** A parsed QTI 1.2 assessment or object bank. */

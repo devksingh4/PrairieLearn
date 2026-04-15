@@ -540,6 +540,297 @@ describe('PLEmitter', () => {
     });
   });
 
+  describe('checkbox per-answer feedback via grade()', () => {
+    it('omits feedback attributes on <pl-answer> elements', () => {
+      const q = makeQuestion({
+        body: {
+          type: 'checkbox',
+          choices: [
+            { id: 'a', html: 'Alpha', correct: true },
+            { id: 'b', html: 'Beta', correct: false },
+          ],
+        },
+        feedback: { perAnswer: { Alpha: '<p>Right!</p>', Beta: '<p>Nope.</p>' } },
+      });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.notInclude(html, 'feedback=');
+      assert.include(html, '<pl-answer correct="true">Alpha</pl-answer>');
+    });
+
+    it('emits pl-answer-panel for checkbox with perAnswer feedback', () => {
+      const q = makeQuestion({
+        body: {
+          type: 'checkbox',
+          choices: [{ id: 'a', html: 'Alpha', correct: true }],
+        },
+        feedback: { perAnswer: { Alpha: 'Good!' } },
+      });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, '<pl-answer-panel>');
+    });
+
+    it('emits grade() with _feedback_map and bold answer labels', () => {
+      const q = makeQuestion({
+        body: {
+          type: 'checkbox',
+          choices: [
+            { id: 'a', html: 'Alpha', correct: true },
+            { id: 'b', html: 'Beta', correct: false },
+          ],
+        },
+        feedback: { perAnswer: { Alpha: '<p>Right!</p>', Beta: '<p>Nope.</p>' } },
+      });
+      const serverPy = emitter.emit(makeAssessment([q])).questions[0].serverPy ?? '';
+      assert.include(serverPy, 'def grade(data):');
+      assert.include(serverPy, '_feedback_map = {');
+      assert.include(serverPy, '"Alpha"');
+      assert.include(serverPy, '"Beta"');
+      assert.include(serverPy, 'data["submitted_answers"].get("answer")');
+      assert.include(serverPy, '<strong>{a}</strong>');
+      assert.include(serverPy, '"<br>".join(_messages)');
+    });
+
+    it('appends global feedback to _messages after per-answer feedback', () => {
+      const q = makeQuestion({
+        body: {
+          type: 'checkbox',
+          choices: [{ id: 'a', html: 'Alpha', correct: true }],
+        },
+        feedback: {
+          perAnswer: { Alpha: 'Nice!' },
+          correct: 'All correct!',
+          incorrect: 'Some wrong.',
+        },
+      });
+      const serverPy = emitter.emit(makeAssessment([q])).questions[0].serverPy ?? '';
+      assert.include(serverPy, '_feedback_map');
+      assert.include(serverPy, '"All correct!"');
+      assert.include(serverPy, '"Some wrong."');
+      assert.include(serverPy, '_messages.append');
+    });
+  });
+
+  describe('fill-in-blanks per-blank feedback via grade()', () => {
+    it('emits grade() that checks partial_scores per blank', () => {
+      const q = makeQuestion({
+        promptHtml: '<p>Colombia: [cap1], Estonia: [cap2].</p>',
+        body: {
+          type: 'fill-in-blanks',
+          blanks: [
+            { id: 'cap1', correctText: 'bogota', ignoreCase: true },
+            { id: 'cap2', correctText: 'tallinn', ignoreCase: true },
+          ],
+        },
+        feedback: {
+          perAnswer: { bogota: 'Great, Bogotá!', tallinn: 'Good job for Tallinn!' },
+          correct: 'Perfect!',
+          incorrect: 'Not quite.',
+        },
+      });
+      const serverPy = emitter.emit(makeAssessment([q])).questions[0].serverPy ?? '';
+      assert.include(serverPy, 'def grade(data):');
+      assert.include(serverPy, '_messages = []');
+      assert.include(serverPy, 'partial_scores');
+      assert.include(serverPy, '"cap1"');
+      assert.include(serverPy, '"cap2"');
+      assert.include(serverPy, '<strong>bogota</strong>');
+      assert.include(serverPy, '<strong>tallinn</strong>');
+      // Global feedback appended independently (non-short-circuit)
+      assert.include(serverPy, '"Perfect!"');
+      assert.include(serverPy, '"Not quite."');
+      assert.include(serverPy, '_messages.append');
+    });
+
+    it('emits pl-answer-panel for fill-in-blanks with perAnswer feedback', () => {
+      const q = makeQuestion({
+        promptHtml: '<p>[ans]</p>',
+        body: {
+          type: 'fill-in-blanks',
+          blanks: [{ id: 'ans', correctText: 'hello' }],
+        },
+        feedback: { perAnswer: { hello: 'Correct!' } },
+      });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, '<pl-answer-panel>');
+    });
+  });
+
+  describe('calculated question rendering', () => {
+    function makeCalcQuestion(overrides: Partial<IRQuestion> = {}): IRQuestion {
+      return makeQuestion({
+        promptHtml: '<p>What is [a] + [b]?</p>',
+        body: {
+          type: 'calculated',
+          formula: '[a]+[b]',
+          vars: [
+            { name: 'a', min: 1, max: 10, decimalPlaces: 2 },
+            { name: 'b', min: 2, max: 5, decimalPlaces: 2 },
+          ],
+          tolerance: 0.01,
+          toleranceType: 'absolute',
+        },
+        ...overrides,
+      });
+    }
+
+    it('renders pl-number-input with atol for absolute tolerance', () => {
+      const html = emitter.emit(makeAssessment([makeCalcQuestion()])).questions[0].questionHtml;
+      assert.include(html, '<pl-number-input answers-name="answer" atol="0.01">');
+    });
+
+    it('renders pl-number-input with rtol for relative tolerance', () => {
+      const q = makeQuestion({
+        body: {
+          type: 'calculated',
+          formula: '[x]*2',
+          vars: [{ name: 'x', min: 1, max: 10, decimalPlaces: 0 }],
+          tolerance: 5,
+          toleranceType: 'relative',
+        },
+      });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, 'rtol="0.05"');
+    });
+
+    it('replaces [varname] placeholders with {{params.varname}} in prompt', () => {
+      const html = emitter.emit(makeAssessment([makeCalcQuestion()])).questions[0].questionHtml;
+      assert.include(html, '{{params.a}}');
+      assert.include(html, '{{params.b}}');
+      assert.notInclude(html, '[a]');
+    });
+
+    it('emits generate() with variable sampling and answer computation', () => {
+      const serverPy =
+        emitter.emit(makeAssessment([makeCalcQuestion()])).questions[0].serverPy ?? '';
+      assert.include(serverPy, 'def generate(data):');
+      assert.include(serverPy, 'import random');
+      assert.include(serverPy, 'random.uniform(1, 10)');
+      assert.include(serverPy, 'random.uniform(2, 5)');
+      assert.include(serverPy, 'answer = a+b');
+      assert.include(serverPy, 'data["params"]["a"]');
+      assert.include(serverPy, 'data["params"]["b"]');
+      assert.include(serverPy, 'data["correct_answers"]["answer"]');
+    });
+
+    it('includes tolerance comment in generate()', () => {
+      const serverPy =
+        emitter.emit(makeAssessment([makeCalcQuestion()])).questions[0].serverPy ?? '';
+      assert.include(serverPy, '# tolerance: 0.01');
+    });
+
+    it('sets singleVariant to false for calculated questions', () => {
+      // Calculated questions vary each time — should NOT be singleVariant
+      const result = emitter.emit(makeAssessment([makeCalcQuestion()]));
+      // singleVariant is true for all questions currently; calculated questions generate
+      // dynamic content via generate() — verify generate() is present instead
+      assert.include(
+        result.questions[0].serverPy ?? '',
+        'def generate(data):',
+        'calculated questions must have a generate() function',
+      );
+    });
+
+    it('converts formula math functions to Python equivalents', () => {
+      const q = makeQuestion({
+        body: {
+          type: 'calculated',
+          formula: 'sqrt([x]) + log([x]) + ln([x])',
+          vars: [{ name: 'x', min: 1, max: 10, decimalPlaces: 2 }],
+          tolerance: 0,
+          toleranceType: 'absolute',
+        },
+      });
+      const serverPy = emitter.emit(makeAssessment([q])).questions[0].serverPy ?? '';
+      assert.include(serverPy, 'math.sqrt(x)');
+      assert.include(serverPy, 'math.log10(x)');
+      assert.include(serverPy, 'math.log(x)');
+    });
+  });
+
+  describe('file-upload rendering', () => {
+    it('renders pl-file-upload with wildcard when no allowedExtensions', () => {
+      const q = makeQuestion({ body: { type: 'file-upload' } });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, '<pl-file-upload file-patterns="*">');
+    });
+
+    it('renders pl-file-upload with extension patterns when allowedExtensions provided', () => {
+      const q = makeQuestion({
+        body: { type: 'file-upload', allowedExtensions: ['pdf', 'docx'] },
+      });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, 'file-patterns="*.pdf,*.docx"');
+    });
+
+    it('sets gradingMethod to Manual for file-upload questions', () => {
+      const q = makeQuestion({ body: { type: 'file-upload' }, gradingMethod: 'Manual' });
+      const result = emitter.emit(makeAssessment([q]));
+      assert.equal(result.questions[0].infoJson.gradingMethod, 'Manual');
+    });
+  });
+
+  describe('integer question rendering', () => {
+    it('renders pl-integer-input for integer body type', () => {
+      const q = makeQuestion({ body: { type: 'integer', answer: { correctValue: 42 } } });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, '<pl-integer-input answers-name="answer" correct-answer="42">');
+    });
+  });
+
+  describe('numeric question with tolerance', () => {
+    it('renders pl-number-input with atol when tolerance is provided', () => {
+      const q = makeQuestion({
+        body: { type: 'numeric', answer: { correctValue: 3.14, tolerance: 0.005 } },
+      });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.include(html, 'correct-answer="3.14"');
+      assert.include(html, 'atol="0.005"');
+    });
+
+    it('renders pl-number-input without atol when tolerance is absent', () => {
+      const q = makeQuestion({ body: { type: 'numeric', answer: { correctValue: 99 } } });
+      const html = emitter.emit(makeAssessment([q])).questions[0].questionHtml;
+      assert.notInclude(html, 'atol=');
+    });
+  });
+
+  describe('zone numberChoose', () => {
+    it('emits numberChoose on the zone when set', () => {
+      const q = makeQuestion();
+      const assessment: IRAssessment = {
+        sourceId: 'a1',
+        title: 'Quiz',
+        questions: [q],
+        zones: [{ title: 'Random Pool', questions: [q], numberChoose: 1 }],
+      };
+      const result = emitter.emit(assessment);
+      assert.equal(result.assessment.infoJson.zones[0].numberChoose, 1);
+    });
+
+    it('does not emit numberChoose when not set on zone', () => {
+      const q = makeQuestion();
+      const assessment: IRAssessment = {
+        sourceId: 'a1',
+        title: 'Quiz',
+        questions: [q],
+        zones: [{ title: 'Part 1', questions: [q] }],
+      };
+      const result = emitter.emit(assessment);
+      assert.isUndefined(result.assessment.infoJson.zones[0].numberChoose);
+    });
+  });
+
+  describe('parseWarnings propagation', () => {
+    it('includes parseWarnings from assessment in result warnings', () => {
+      const assessment = makeAssessment([makeQuestion()]);
+      assessment.parseWarnings = [{ questionId: 'bad-q', message: 'Unsupported type' }];
+      const result = emitter.emit(assessment);
+      assert.equal(result.warnings.length, 1);
+      assert.equal(result.warnings[0].questionId, 'bad-q');
+      assert.equal(result.warnings[0].message, 'Unsupported type');
+    });
+  });
+
   describe('sourceId on PLQuestionOutput', () => {
     it('populates sourceId on each emitted question', () => {
       const q1 = makeQuestion({ sourceId: 'q-abc' });

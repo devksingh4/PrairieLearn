@@ -530,6 +530,255 @@ describe('QTI12AssessmentParser', () => {
     });
   });
 
+  describe('points_per_item section-level override', () => {
+    it('uses section points_per_item instead of item points_possible', () => {
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Quiz">
+    <section ident="root_section">
+      <selection_ordering>
+        <selection>
+          <selection_extension>
+            <points_per_item>10</points_per_item>
+          </selection_extension>
+        </selection>
+      </selection_ordering>
+      <item ident="q1" title="Q1">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>multiple_choice_question</fieldentry></qtimetadatafield>
+          <qtimetadatafield><fieldlabel>points_possible</fieldlabel><fieldentry>1</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation>
+          <material><mattext texttype="text/html">&lt;p&gt;Pick one&lt;/p&gt;</mattext></material>
+          <response_lid ident="response1" rcardinality="Single">
+            <render_choice>
+              <response_label ident="a"><material><mattext>A</mattext></material></response_label>
+              <response_label ident="b"><material><mattext>B</mattext></material></response_label>
+            </render_choice>
+          </response_lid>
+        </presentation>
+        <resprocessing>
+          <respcondition><conditionvar><varequal respident="response1">a</varequal></conditionvar><setvar>100</setvar></respcondition>
+        </resprocessing>
+      </item>
+    </section>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      assert.equal(result.questions[0].points, 10);
+    });
+  });
+
+  describe('selection_number → zone numberChoose', () => {
+    it('sets numberChoose on zone when selection_number < items count', () => {
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Quiz">
+    <section ident="root_section">
+      <section ident="pool" title="Random Pool">
+        <selection_ordering>
+          <selection>
+            <selection_number>1</selection_number>
+          </selection>
+        </selection_ordering>
+        <item ident="q1" title="Q1">
+          <itemmetadata><qtimetadata>
+            <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>multiple_choice_question</fieldentry></qtimetadatafield>
+          </qtimetadata></itemmetadata>
+          <presentation>
+            <material><mattext texttype="text/html">&lt;p&gt;Q1&lt;/p&gt;</mattext></material>
+            <response_lid ident="r1" rcardinality="Single">
+              <render_choice>
+                <response_label ident="a"><material><mattext>A</mattext></material></response_label>
+              </render_choice>
+            </response_lid>
+          </presentation>
+          <resprocessing>
+            <respcondition><conditionvar><varequal respident="r1">a</varequal></conditionvar><setvar>100</setvar></respcondition>
+          </resprocessing>
+        </item>
+        <item ident="q2" title="Q2">
+          <itemmetadata><qtimetadata>
+            <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>multiple_choice_question</fieldentry></qtimetadatafield>
+          </qtimetadata></itemmetadata>
+          <presentation>
+            <material><mattext texttype="text/html">&lt;p&gt;Q2&lt;/p&gt;</mattext></material>
+            <response_lid ident="r2" rcardinality="Single">
+              <render_choice>
+                <response_label ident="a"><material><mattext>A</mattext></material></response_label>
+              </render_choice>
+            </response_lid>
+          </presentation>
+          <resprocessing>
+            <respcondition><conditionvar><varequal respident="r2">a</varequal></conditionvar><setvar>100</setvar></respcondition>
+          </resprocessing>
+        </item>
+      </section>
+    </section>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      assert.isDefined(result.zones);
+      assert.equal(result.zones![0].numberChoose, 1);
+    });
+
+    it('does not set numberChoose when selection_number equals items count', () => {
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Quiz">
+    <section ident="root_section">
+      <section ident="pool" title="Full Pool">
+        <selection_ordering>
+          <selection>
+            <selection_number>2</selection_number>
+          </selection>
+        </selection_ordering>
+        <item ident="q1" title="Q1">
+          <itemmetadata><qtimetadata>
+            <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>multiple_choice_question</fieldentry></qtimetadatafield>
+          </qtimetadata></itemmetadata>
+          <presentation>
+            <material><mattext texttype="text/html">&lt;p&gt;Q1&lt;/p&gt;</mattext></material>
+            <response_lid ident="r1" rcardinality="Single">
+              <render_choice>
+                <response_label ident="a"><material><mattext>A</mattext></material></response_label>
+              </render_choice>
+            </response_lid>
+          </presentation>
+          <resprocessing>
+            <respcondition><conditionvar><varequal respident="r1">a</varequal></conditionvar><setvar>100</setvar></respcondition>
+          </resprocessing>
+        </item>
+        <item ident="q2" title="Q2">
+          <itemmetadata><qtimetadata>
+            <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>multiple_choice_question</fieldentry></qtimetadatafield>
+          </qtimetadata></itemmetadata>
+          <presentation>
+            <material><mattext texttype="text/html">&lt;p&gt;Q2&lt;/p&gt;</mattext></material>
+            <response_lid ident="r2" rcardinality="Single">
+              <render_choice>
+                <response_label ident="a"><material><mattext>A</mattext></material></response_label>
+              </render_choice>
+            </response_lid>
+          </presentation>
+          <resprocessing>
+            <respcondition><conditionvar><varequal respident="r2">a</varequal></conditionvar><setvar>100</setvar></respcondition>
+          </resprocessing>
+        </item>
+      </section>
+    </section>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      assert.isUndefined(result.zones?.[0].numberChoose);
+    });
+  });
+
+  describe('allowed_extensions → file-upload allowedExtensions', () => {
+    const FILE_UPLOAD_QTI = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Assignment">
+    <section ident="root_section">
+      <item ident="q1" title="Upload File">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>file_upload_question</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation>
+          <material><mattext texttype="text/html">&lt;p&gt;Upload your work.&lt;/p&gt;</mattext></material>
+        </presentation>
+      </item>
+    </section>
+  </assessment>
+</questestinterop>`;
+
+    it('injects allowedExtensions into file-upload body from assessment_meta.xml', () => {
+      const meta = `<?xml version="1.0" encoding="UTF-8"?>
+<quiz xmlns="http://canvas.instructure.com/xsd/cccv1p0">
+  <allowed_attempts>-1</allowed_attempts>
+  <assignment>
+    <allowed_extensions>pdf,docx</allowed_extensions>
+  </assignment>
+</quiz>`;
+      const result = parser.parse(FILE_UPLOAD_QTI, { assessmentMetaXml: meta });
+      const q = result.questions[0];
+      assert.equal(q.body.type, 'file-upload');
+      if (q.body.type === 'file-upload') {
+        assert.deepEqual(q.body.allowedExtensions, ['pdf', 'docx']);
+      }
+    });
+
+    it('leaves allowedExtensions undefined when no allowed_extensions in meta', () => {
+      const result = parser.parse(FILE_UPLOAD_QTI);
+      const q = result.questions[0];
+      assert.equal(q.body.type, 'file-upload');
+      if (q.body.type === 'file-upload') {
+        assert.isUndefined(q.body.allowedExtensions);
+      }
+    });
+  });
+
+  describe('parseWarnings for unsupported question types', () => {
+    it('records a warning for unknown question types instead of throwing', () => {
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Quiz">
+    <section ident="root_section">
+      <item ident="q1" title="Unsupported">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>magic_question</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation>
+          <material><mattext texttype="text/html">&lt;p&gt;???&lt;/p&gt;</mattext></material>
+        </presentation>
+      </item>
+    </section>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      assert.equal(result.questions.length, 0);
+      assert.isDefined(result.parseWarnings);
+      assert.equal(result.parseWarnings!.length, 1);
+      assert.equal(result.parseWarnings![0].questionId, 'q1');
+      assert.include(result.parseWarnings![0].message, 'magic_question');
+    });
+
+    it('still parses valid questions when some are unsupported', () => {
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Quiz">
+    <section ident="root_section">
+      <item ident="q1" title="Unsupported">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>magic_question</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation><material><mattext>???</mattext></material></presentation>
+      </item>
+      <item ident="q2" title="Good MC">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>multiple_choice_question</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation>
+          <material><mattext texttype="text/html">&lt;p&gt;Pick one&lt;/p&gt;</mattext></material>
+          <response_lid ident="r2" rcardinality="Single">
+            <render_choice>
+              <response_label ident="a"><material><mattext>A</mattext></material></response_label>
+            </render_choice>
+          </response_lid>
+        </presentation>
+        <resprocessing>
+          <respcondition><conditionvar><varequal respident="r2">a</varequal></conditionvar><setvar>100</setvar></respcondition>
+        </resprocessing>
+      </item>
+    </section>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      assert.equal(result.questions.length, 1);
+      assert.equal(result.questions[0].sourceId, 'q2');
+      assert.equal(result.parseWarnings!.length, 1);
+    });
+  });
+
   describe('shuffle propagation', () => {
     const BASE_QTI = `<?xml version="1.0"?>
 <questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">

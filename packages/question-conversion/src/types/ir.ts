@@ -23,6 +23,20 @@ export interface IRBlank {
   ignoreCase?: boolean;
 }
 
+/** A blank with dropdown choices for multiple-dropdowns questions. */
+export interface IRDropdownBlank {
+  id: string;
+  choices: IRChoice[];
+}
+
+/** A variable definition for a calculated question. */
+export interface IRCalculatedVar {
+  name: string;
+  min: number;
+  max: number;
+  decimalPlaces: number;
+}
+
 /** Numeric, non-integer answer specification. */
 export interface IRNumericAnswer {
   correctValue: number;
@@ -67,12 +81,21 @@ export type IRQuestionBody =
   | { type: 'checkbox'; choices: IRChoice[] }
   | { type: 'matching'; pairs: IRMatchPair[]; distractors: IRMatchDistractor[] }
   | { type: 'fill-in-blanks'; blanks: IRBlank[] }
+  | { type: 'multiple-dropdowns'; blanks: IRDropdownBlank[] }
   | { type: 'numeric'; answer: IRNumericAnswer }
   | { type: 'integer'; answer: IRIntegerAnswer }
   | { type: 'string-input'; correctAnswer: string; ignoreCase?: boolean }
   | { type: 'ordering'; correctOrder: IROrderItem[] }
   | { type: 'rich-text'; gradingMethod: 'Manual' }
-  | { type: 'text-only' };
+  | { type: 'text-only' }
+  | { type: 'file-upload'; allowedExtensions?: string[] }
+  | {
+      type: 'calculated';
+      formula: string;
+      vars: IRCalculatedVar[];
+      tolerance: number;
+      toleranceType: 'absolute' | 'relative';
+    };
 
 export type IRQuestionGradingMethod = 'External' | 'Internal' | 'Manual' | undefined;
 
@@ -94,6 +117,8 @@ export interface IRQuestion {
 export interface IRZone {
   title: string;
   questions: IRQuestion[];
+  /** If set, only this many questions are randomly chosen from the zone. */
+  numberChoose?: number;
 }
 
 /** Assessment-level metadata extracted from QTI. */
@@ -130,6 +155,12 @@ export interface IRAssessmentMeta {
   scoringPolicy?: 'keep_highest' | 'keep_latest';
 }
 
+/** A warning generated during parsing. */
+export interface IRParseWarning {
+  questionId: string;
+  message: string;
+}
+
 /** A collection of questions from one source (e.g., one assessment). */
 export interface IRAssessment {
   sourceId: string;
@@ -140,4 +171,6 @@ export interface IRAssessment {
   zones?: IRZone[];
   /** Assessment-level metadata. */
   meta?: IRAssessmentMeta;
+  /** Warnings produced during parsing (e.g., unsupported question types). */
+  parseWarnings?: IRParseWarning[];
 }

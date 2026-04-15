@@ -2,7 +2,9 @@ import type {
   IRAssessment,
   IRAssessmentMeta,
   IRBlank,
+  IRCalculatedVar,
   IRChoice,
+  IRDropdownBlank,
   IRQuestion,
   IRQuestionBody,
   IRZone,
@@ -25,7 +27,7 @@ import type { ConversionResult, ConversionWarning, EmitOptions, OutputEmitter } 
 export class PLEmitter implements OutputEmitter {
   emit(assessment: IRAssessment, options?: EmitOptions): ConversionResult {
     const questions: PLQuestionOutput[] = [];
-    const warnings: ConversionWarning[] = [];
+    const warnings: ConversionWarning[] = [...(assessment.parseWarnings ?? [])];
     const usedDirNames = new Map<string, number>();
 
     for (let i = 0; i < assessment.questions.length; i++) {
@@ -72,7 +74,11 @@ export class PLEmitter implements OutputEmitter {
       for (const zone of assessment.zones) {
         const zoneQuestions = this.buildZoneQuestions(zone, questionDirBySourceId, prefix);
         if (zoneQuestions.length > 0) {
-          zones.push({ title: zone.title, questions: zoneQuestions });
+          zones.push({
+            title: zone.title,
+            questions: zoneQuestions,
+            ...(zone.numberChoose != null ? { numberChoose: zone.numberChoose } : {}),
+          });
         }
       }
     } else {
@@ -81,7 +87,7 @@ export class PLEmitter implements OutputEmitter {
         const qIr = questionBySourceId.get(q.sourceId);
         return {
           id: prefix ? `${prefix}/${q.directoryName}` : q.directoryName,
-          ...(qIr?.body.type === 'rich-text'
+          ...(qIr?.gradingMethod === 'Manual'
             ? { manualPoints: qIr.points }
             : { autoPoints: qIr?.points }),
         };
@@ -162,7 +168,7 @@ export class PLEmitter implements OutputEmitter {
       if (dir) {
         result.push({
           id: prefix ? `${prefix}/${dir}` : dir,
-          ...(q.body.type === 'rich-text' ? { manualPoints: q.points } : { autoPoints: q.points }),
+          ...(q.gradingMethod === 'Manual' ? { manualPoints: q.points } : { autoPoints: q.points }),
         });
       }
     }
@@ -258,22 +264,33 @@ export class PLEmitter implements OutputEmitter {
     if (question.body.type === 'fill-in-blanks') {
       promptHtml = this.inlineFillInBlanks(promptHtml, question.body.blanks);
     }
+    // For multiple-dropdowns, embed <pl-dropdown> elements inline in the prompt.
+    if (question.body.type === 'multiple-dropdowns') {
+      promptHtml = this.inlineDropdowns(promptHtml, question.body.blanks);
+    }
+    // For calculated questions, replace [varname] placeholders with Mustache params.
+    if (question.body.type === 'calculated') {
+      promptHtml = this.replaceCalculatedVars(promptHtml, question.body.vars);
+    }
 
     const parts: string[] = ['<pl-question-panel>', promptHtml, '</pl-question-panel>', ''];
 
-    const bodyHtml = this.renderBodyHtml(
-      question.body,
-      question.shuffleAnswers,
-      question.feedback?.perAnswer,
-    );
+    // For checkbox questions, per-answer feedback is concatenated in server.py grade()
+    // so all selected answers' feedback is shown together. Don't put feedback attributes
+    // on individual <pl-answer> elements — PL only surfaces one of them.
+    const perAnswerForBody =
+      question.body.type === 'checkbox' ? undefined : question.feedback?.perAnswer;
+    const bodyHtml = this.renderBodyHtml(question.body, question.shuffleAnswers, perAnswerForBody);
     if (bodyHtml) {
       parts.push(bodyHtml);
     }
 
-    // Only add <pl-answer-panel> for global correct/incorrect feedback (server.py grade()).
-    // Per-answer feedback is emitted as feedback="..." attributes on <pl-answer> elements.
     const fb = question.feedback;
-    if (fb?.correct || fb?.incorrect) {
+    const hasPerAnswerGradeFn =
+      (question.body.type === 'checkbox' || question.body.type === 'fill-in-blanks') &&
+      fb?.perAnswer != null &&
+      Object.keys(fb.perAnswer).length > 0;
+    if (fb?.correct || fb?.incorrect || hasPerAnswerGradeFn) {
       parts.push('', '<pl-answer-panel>', '{{{feedback.general}}}', '</pl-answer-panel>');
     }
 
@@ -285,6 +302,29 @@ export class PLEmitter implements OutputEmitter {
     for (const blank of blanks) {
       const input = `<pl-string-input answers-name="${escapeAttr(blank.id)}" correct-answer="${escapeAttr(blank.correctText)}" remove-leading-trailing="true"${blank.ignoreCase ? ' ignore-case="true"' : ''}></pl-string-input>`;
       result = result.replaceAll(`[${blank.id}]`, input);
+    }
+    return result;
+  }
+
+  private inlineDropdowns(promptHtml: string, blanks: IRDropdownBlank[]): string {
+    let result = promptHtml;
+    for (const blank of blanks) {
+      const lines = [`<pl-dropdown answers-name="${escapeAttr(blank.id)}">`];
+      for (const choice of blank.choices) {
+        lines.push(
+          `  <pl-answer correct="${choice.correct}">${escapeHtml(choice.html)}</pl-answer>`,
+        );
+      }
+      lines.push('</pl-dropdown>');
+      result = result.replaceAll(`[${blank.id}]`, lines.join('\n'));
+    }
+    return result;
+  }
+
+  private replaceCalculatedVars(promptHtml: string, vars: IRCalculatedVar[]): string {
+    let result = promptHtml;
+    for (const v of vars) {
+      result = result.replaceAll(`[${v.name}]`, `{{params.${v.name}}}`);
     }
     return result;
   }
@@ -304,10 +344,13 @@ export class PLEmitter implements OutputEmitter {
       case 'fill-in-blanks':
         // Inputs are inlined directly into the prompt in renderQuestionHtml.
         return '';
+      case 'multiple-dropdowns':
+        // Dropdowns are inlined directly into the prompt in renderQuestionHtml.
+        return '';
       case 'numeric':
-        return `<pl-number-input answers-name="answer" correct-answer="${body.answer.correctValue}"></pl-number-input>`;
+        return `<pl-number-input answers-name="answer" correct-answer="${body.answer.correctValue}"${body.answer.tolerance != null ? ` atol="${body.answer.tolerance}"` : ''}></pl-number-input>`;
       case 'integer':
-        return `<pl-integer-input answers-name="answer" correct-answer="${body.answer.correctValue}"></pl-number-input>`;
+        return `<pl-integer-input answers-name="answer" correct-answer="${body.answer.correctValue}"></pl-integer-input>`;
       case 'string-input':
         return `<pl-string-input answers-name="answer" correct-answer="${escapeAttr(body.correctAnswer)}" remove-leading-trailing="true"${body.ignoreCase ? ' ignore-case="true"' : ''}></pl-string-input>`;
       case 'ordering':
@@ -316,6 +359,22 @@ export class PLEmitter implements OutputEmitter {
         return '<pl-rich-text-editor file-name="answer.html"></pl-rich-text-editor>';
       case 'text-only':
         return '';
+      case 'file-upload': {
+        if (body.allowedExtensions?.length) {
+          const patterns = body.allowedExtensions.map((ext) => `*.${ext}`).join(',');
+          return `<pl-file-upload file-patterns="${escapeAttr(patterns)}"></pl-file-upload>`;
+        }
+        return '<pl-file-upload file-patterns="*"></pl-file-upload>';
+      }
+      case 'calculated': {
+        const tolAttr =
+          body.tolerance > 0
+            ? body.toleranceType === 'relative'
+              ? ` rtol="${body.tolerance / 100}"`
+              : ` atol="${body.tolerance}"`
+            : '';
+        return `<pl-number-input answers-name="answer"${tolAttr}></pl-number-input>`;
+      }
       default: {
         throw new Error(`Unhandled body type: ${(body as IRQuestionBody).type}`);
       }
@@ -405,15 +464,86 @@ export class PLEmitter implements OutputEmitter {
     return parts.join('\n');
   }
 
-  private renderGenerateFn(_question: IRQuestion): string {
-    return '';
+  private renderGenerateFn(question: IRQuestion): string {
+    if (question.body.type !== 'calculated') return '';
+    const { formula, vars, tolerance, toleranceType } = question.body;
+
+    const pyFormula = convertFormulaToPython(formula);
+    const lines = ['import math', 'import random', '', 'def generate(data):'];
+
+    for (const v of vars) {
+      lines.push(`    ${v.name} = round(random.uniform(${v.min}, ${v.max}), ${v.decimalPlaces})`);
+    }
+    lines.push(`    answer = ${pyFormula}`, '');
+    for (const v of vars) {
+      lines.push(`    data["params"]["${v.name}"] = ${v.name}`);
+    }
+
+    // Pass tolerance to PL via correct_answers — PL uses the element attributes for
+    // display tolerance, but we also record it in the server so the question is self-contained.
+    const tolComment =
+      tolerance > 0 ? ` # tolerance: ${tolerance}${toleranceType === 'relative' ? '%' : ''}` : '';
+    lines.push(`    data["correct_answers"]["answer"] = answer${tolComment}`, '');
+
+    return lines.join('\n');
   }
 
   private renderGradeFn(question: IRQuestion): string {
-    const { correct, incorrect } = question.feedback ?? {};
-    // Per-answer feedback is emitted as feedback="..." on <pl-answer> elements, not in server.py.
+    const { correct, incorrect, perAnswer } = question.feedback ?? {};
 
-    // Global correct/incorrect feedback fallback.
+    // For checkbox questions, concatenate per-answer feedback for all selected answers
+    // so students see all relevant feedback simultaneously (matching Canvas behaviour).
+    if (
+      question.body.type === 'checkbox' &&
+      perAnswer != null &&
+      Object.keys(perAnswer).length > 0
+    ) {
+      const lines = ['def grade(data):', '    _feedback_map = {'];
+      for (const [answer, fb] of Object.entries(perAnswer)) {
+        lines.push(`        ${JSON.stringify(answer)}: ${JSON.stringify(fb)},`);
+      }
+      lines.push(
+        '    }',
+        '    _submitted = data["submitted_answers"].get("answer") or []',
+        '    _messages = [f"<strong>{a}</strong>: {_feedback_map[a]}" for a in _submitted if a in _feedback_map]',
+      );
+      // Append global correct/incorrect feedback after per-answer messages if present.
+      appendGlobalFeedback(lines, correct, incorrect);
+      lines.push(
+        '    if _messages:',
+        '        data["feedback"]["general"] = "<br>".join(_messages)',
+        '',
+      );
+      return lines.join('\n');
+    }
+
+    // For fill-in-blanks questions, per-answer feedback is shown for each correctly
+    // answered blank (checked via partial_scores), then global feedback is appended.
+    // These are additive — getting all blanks right shows both per-blank AND global feedback.
+    if (question.body.type === 'fill-in-blanks') {
+      const blanksWithFeedback = question.body.blanks.filter(
+        (b) => b.correctText && perAnswer?.[b.correctText] != null,
+      );
+      if (blanksWithFeedback.length > 0 || correct || incorrect) {
+        const lines = ['def grade(data):', '    _messages = []'];
+        for (const blank of blanksWithFeedback) {
+          const fb = perAnswer![blank.correctText];
+          lines.push(
+            `    if data["partial_scores"].get(${JSON.stringify(blank.id)}, {}).get("score", 0) >= 1:`,
+            `        _messages.append(f"<strong>${escapeAttr(blank.correctText)}</strong>: ${fb}")`,
+          );
+        }
+        appendGlobalFeedback(lines, correct, incorrect);
+        lines.push(
+          '    if _messages:',
+          '        data["feedback"]["general"] = "<br>".join(_messages)',
+          '',
+        );
+        return lines.join('\n');
+      }
+    }
+
+    // For all other question types, use global correct/incorrect feedback only.
     if (!correct && !incorrect) return '';
 
     const lines = ['def grade(data):'];
@@ -451,6 +581,72 @@ export class PLEmitter implements OutputEmitter {
     }
     return files;
   }
+}
+
+/**
+ * Append lines to a grade() function body that set global correct/incorrect feedback
+ * by appending to a `_messages` list. Both branches are independent (no short-circuit).
+ */
+function appendGlobalFeedback(
+  lines: string[],
+  correct: string | undefined,
+  incorrect: string | undefined,
+): void {
+  if (correct && incorrect) {
+    lines.push(
+      '    if data["score"] >= 1.0:',
+      `        _messages.append(${JSON.stringify(correct)})`,
+      '    else:',
+      `        _messages.append(${JSON.stringify(incorrect)})`,
+    );
+  } else if (correct) {
+    lines.push(
+      '    if data["score"] >= 1.0:',
+      `        _messages.append(${JSON.stringify(correct)})`,
+    );
+  } else if (incorrect) {
+    lines.push(
+      '    if data["score"] < 1.0:',
+      `        _messages.append(${JSON.stringify(incorrect)})`,
+    );
+  }
+}
+
+/**
+ * Convert a Canvas formula string to a valid Python expression.
+ *
+ * Canvas uses [varname] for variable references and supports common math
+ * functions. Differences from Python:
+ *   - [varname]  → varname
+ *   - log(x)     → math.log10(x)  (Canvas log = base-10)
+ *   - ln(x)      → math.log(x)    (Canvas ln = natural log)
+ *   - sqrt/sin/cos/tan/etc → math.<fn>(...)
+ *   - ^          → **              (exponentiation)
+ */
+function convertFormulaToPython(formula: string): string {
+  let py = formula.replaceAll(/\[(\w+)\]/g, '$1');
+  // Use negative lookbehind to avoid re-matching already-prefixed math.log(...).
+  // Replace log() first, then ln() — both use word-boundary anchors so they
+  // don't collide with each other or with already-prefixed identifiers.
+  py = py.replaceAll(/(?<!math\.)\blog\s*\(/g, 'math.log10(');
+  py = py.replaceAll(/(?<!math\.)\bln\s*\(/g, 'math.log(');
+  for (const fn of [
+    'sqrt',
+    'sin',
+    'cos',
+    'tan',
+    'asin',
+    'acos',
+    'atan',
+    'exp',
+    'abs',
+    'ceil',
+    'floor',
+  ]) {
+    py = py.replaceAll(new RegExp(`\\b${fn}\\s*\\(`, 'g'), `math.${fn}(`);
+  }
+  py = py.replaceAll('^', '**');
+  return py;
 }
 
 function escapeHtml(text: string): string {
