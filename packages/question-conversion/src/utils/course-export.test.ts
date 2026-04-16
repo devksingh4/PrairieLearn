@@ -2,7 +2,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { assert, beforeEach, afterEach, describe, it } from 'vitest';
+import { afterEach, assert, beforeEach, describe, it } from 'vitest';
 
 import { detectCourseExport, findQtiFilesFromManifest } from './course-export.js';
 
@@ -100,7 +100,7 @@ describe('detectCourseExport', () => {
   it('returns null when imsmanifest.xml has no title', async () => {
     await writeFile(
       path.join(tmpDir, 'imsmanifest.xml'),
-      `<?xml version="1.0"?><manifest><resources/></manifest>`,
+      '<?xml version="1.0"?><manifest><resources/></manifest>',
     );
     const result = await detectCourseExport(tmpDir);
     assert.isNull(result);
@@ -131,7 +131,7 @@ describe('detectCourseExport', () => {
     await mkdir(path.join(tmpDir, 'course_settings'), { recursive: true });
     await writeFile(
       path.join(tmpDir, 'course_settings', 'course_settings.xml'),
-      `<?xml version="1.0"?><course><timezone>America/Denver</timezone></course>`,
+      '<?xml version="1.0"?><course><timezone>America/Denver</timezone></course>',
     );
 
     const result = await detectCourseExport(tmpDir);
