@@ -109,7 +109,10 @@ describe('detectCourseExport', () => {
   it('extracts title, courseCode, and timezone from course_settings.xml', async () => {
     await writeFile(path.join(tmpDir, 'imsmanifest.xml'), MANIFEST_TITLE_ONLY);
     await mkdir(path.join(tmpDir, 'course_settings'), { recursive: true });
-    await writeFile(path.join(tmpDir, 'course_settings', 'course_settings.xml'), COURSE_SETTINGS_XML);
+    await writeFile(
+      path.join(tmpDir, 'course_settings', 'course_settings.xml'),
+      COURSE_SETTINGS_XML,
+    );
 
     const result = await detectCourseExport(tmpDir);
     assert.deepEqual(result, {
