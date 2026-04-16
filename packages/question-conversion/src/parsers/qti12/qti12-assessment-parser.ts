@@ -314,6 +314,7 @@ export class QTI12AssessmentParser implements InputParser {
           const sectionPoints = this.readPointsPerItem(subRec);
           const selectionNumber = this.readSelectionNumber(subRec);
           const items = this.collectItems(subRec);
+          this.warnSourcebankRefs(subRec, zoneTitle, parseWarnings);
           const questions = this.transformItems(
             items,
             { parseOptions, shuffleAnswers, allowedExtensions, sectionPoints },
@@ -348,6 +349,7 @@ export class QTI12AssessmentParser implements InputParser {
         // No named sub-sections — flat list
         const sectionPoints = this.readPointsPerItem(rootRec);
         const items = this.collectItems(rootRec);
+        this.warnSourcebankRefs(rootRec, undefined, parseWarnings);
         const questions = this.transformItems(
           items,
           { parseOptions, shuffleAnswers, allowedExtensions, sectionPoints },
@@ -358,6 +360,43 @@ export class QTI12AssessmentParser implements InputParser {
     }
 
     return { questions: allQuestions, zones, parseWarnings };
+  }
+
+  /**
+   * Emit a parse warning for any <sourcebank_ref> elements found in the section.
+   * Canvas quiz exports reference question banks by ID but don't include their content;
+   * those questions cannot be converted without a full course export.
+   */
+  private warnSourcebankRefs(
+    section: Record<string, unknown>,
+    sectionTitle: string | undefined,
+    warnings: IRParseWarning[],
+  ): void {
+    const subSections = ensureArray(section['section'] as unknown);
+    for (const sub of subSections) {
+      if (sub == null || typeof sub !== 'object') continue;
+      const subRec = sub as Record<string, unknown>;
+      const ref = textContent(
+        getNestedValue(subRec, 'selection_ordering', 'selection', 'sourcebank_ref'),
+      );
+      if (ref) {
+        const location = sectionTitle ? `section "${sectionTitle}"` : 'assessment';
+        warnings.push({
+          questionId: ref,
+          message: `Question bank reference "${ref}" in ${location} cannot be resolved — question bank content is not included in QTI quiz exports. Re-export as a full course export to include question bank items.`,
+        });
+      }
+    }
+    // Also check direct sourcebank_ref in this section
+    const directRef = textContent(
+      getNestedValue(section, 'selection_ordering', 'selection', 'sourcebank_ref'),
+    );
+    if (directRef) {
+      warnings.push({
+        questionId: directRef,
+        message: `Question bank reference "${directRef}" cannot be resolved — question bank content is not included in QTI quiz exports. Re-export as a full course export to include question bank items.`,
+      });
+    }
   }
 
   /**

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { Command } from 'commander';
@@ -8,6 +8,12 @@ import { Command } from 'commander';
 import { logger } from '@prairielearn/logger';
 
 import { convert } from '../pipeline.js';
+import {
+  type CourseExportInfo,
+  type QtiFileEntry,
+  detectCourseExport,
+  findQtiFilesFromManifest,
+} from '../utils/course-export.js';
 import { slugify } from '../utils/slugify.js';
 import { stableUuid } from '../utils/uuid.js';
 
@@ -25,6 +31,7 @@ program
   )
   .option('-t, --topic <topic>', 'Default topic for questions')
   .option('--tags <tags...>', 'Default tags for questions', ['imported', 'qti'])
+  .option('--overwrite', 'Delete existing output directories before writing')
   .action(
     async (
       input: string,
@@ -34,30 +41,62 @@ program
         timezone?: string;
         topic?: string;
         tags: string[];
+        overwrite?: boolean;
       },
     ) => {
       const resolvedInput = path.resolve(input);
       const inputStat = await stat(resolvedInput);
       const courseDir = path.resolve(options.course);
 
-      // Resolve timezone: flag → existing infoCourse.json → error
-      const timezone = await resolveTimezone(courseDir, options.timezone);
+      // Detect course export metadata when the input is a directory.
+      // This lets us populate infoCourse.json with real course info and
+      // resolve the timezone without requiring --timezone on the command line.
+      let courseExportInfo: CourseExportInfo | undefined;
+      if (inputStat.isDirectory()) {
+        courseExportInfo = (await detectCourseExport(resolvedInput)) ?? undefined;
+        if (courseExportInfo) {
+          logger.info(`Detected Canvas course export: "${courseExportInfo.title}"`);
+        }
+      }
 
-      await ensureCourseFiles(courseDir, options.courseInstance, timezone);
+      // Resolve timezone: flag → course export settings → existing infoCourse.json → error
+      const timezone = await resolveTimezone(
+        courseDir,
+        options.timezone,
+        courseExportInfo?.timezone,
+      );
+
+      await ensureCourseFiles(courseDir, options.courseInstance, timezone, courseExportInfo);
 
       if (inputStat.isDirectory()) {
-        const xmlFiles = await findQtiXmlFiles(resolvedInput);
+        // Prefer the manifest for file discovery — it's present in both quiz
+        // exports and course exports and only lists QTI assessment resources,
+        // avoiding non-QTI XML files (course settings, wiki pages, etc.).
+        // Fall back to the heuristic directory scan if no manifest is found.
+        const manifestFiles = await findQtiFilesFromManifest(resolvedInput);
+        const entries: QtiFileEntry[] =
+          manifestFiles.length > 0
+            ? manifestFiles
+            : (await findQtiXmlFiles(resolvedInput)).map((p) => ({
+                qtiPath: p,
+                assessmentDir: path.dirname(p),
+              }));
 
-        if (xmlFiles.length === 0) {
+        if (entries.length === 0) {
           logger.error('No QTI XML files found in directory');
           process.exit(1);
         }
 
-        for (const xmlFile of xmlFiles) {
-          await convertFile(xmlFile, courseDir, timezone, options);
+        for (const entry of entries) {
+          await convertFile(entry, courseDir, timezone, options);
         }
       } else {
-        await convertFile(resolvedInput, courseDir, timezone, options);
+        await convertFile(
+          { qtiPath: resolvedInput, assessmentDir: path.dirname(resolvedInput) },
+          courseDir,
+          timezone,
+          options,
+        );
       }
     },
   );
@@ -66,10 +105,15 @@ program.parse();
 
 /**
  * Determine the course timezone.
- * Priority: --timezone flag → existing infoCourse.json → error.
+ * Priority: --timezone flag → course export settings → existing infoCourse.json → error.
  */
-async function resolveTimezone(courseDir: string, flagValue?: string): Promise<string> {
+async function resolveTimezone(
+  courseDir: string,
+  flagValue?: string,
+  courseExportTimezone?: string,
+): Promise<string> {
   if (flagValue) return flagValue;
+  if (courseExportTimezone) return courseExportTimezone;
 
   // Try reading from existing infoCourse.json
   const infoCourseFile = path.join(courseDir, 'infoCourse.json');
@@ -128,17 +172,16 @@ async function findQtiXmlFiles(dir: string): Promise<string[]> {
 }
 
 async function convertFile(
-  xmlPath: string,
+  entry: QtiFileEntry,
   courseDir: string,
   timezone: string,
-  options: { courseInstance: string; topic?: string; tags: string[] },
+  options: { courseInstance: string; topic?: string; tags: string[]; overwrite?: boolean },
 ): Promise<void> {
-  const xmlContent = await readFile(xmlPath, 'utf-8');
-  const inputDir = path.dirname(xmlPath);
-  const webResourcesDir = path.join(inputDir, '..', 'web_resources');
+  const xmlContent = await readFile(entry.qtiPath, 'utf-8');
+  const webResourcesDir = path.join(entry.assessmentDir, '..', 'web_resources');
 
   // Read assessment_meta.xml if present (Canvas-specific metadata)
-  const metaXmlPath = path.join(inputDir, 'assessment_meta.xml');
+  const metaXmlPath = path.join(entry.assessmentDir, 'assessment_meta.xml');
   let assessmentMetaXml: string | undefined;
   try {
     assessmentMetaXml = await readFile(metaXmlPath, 'utf-8');
@@ -146,7 +189,7 @@ async function convertFile(
     // Not present — that's fine
   }
 
-  const baseOptions = { basePath: inputDir, assessmentMetaXml, timezone };
+  const baseOptions = { basePath: entry.assessmentDir, assessmentMetaXml, timezone };
 
   // First pass to get the assessment title for building paths
   const preview = convert(xmlContent, baseOptions);
@@ -169,6 +212,11 @@ async function convertFile(
     'assessments',
     assessmentSlug,
   );
+
+  if (options.overwrite) {
+    await rm(questionsDir, { recursive: true, force: true });
+    await rm(assessmentsDir, { recursive: true, force: true });
+  }
 
   for (const q of result.questions) {
     const qDir = path.join(questionsDir, q.directoryName);
@@ -225,14 +273,19 @@ async function ensureCourseFiles(
   courseDir: string,
   courseInstance: string,
   timezone: string,
+  courseExportInfo?: CourseExportInfo,
 ): Promise<void> {
   const infoCourseFile = path.join(courseDir, 'infoCourse.json');
   if (!(await fileExists(infoCourseFile))) {
     await mkdir(courseDir, { recursive: true });
+    // Use the course short code as `name` (PL requires a short identifier);
+    // fall back to a slugified title, then to the generic placeholder.
+    const name = courseExportInfo?.courseCode ?? courseExportInfo?.title ?? 'Imported Course';
+    const title = courseExportInfo?.title ?? 'Imported Course';
     const infoCourse = {
       uuid: stableUuid(courseDir, 'course'),
-      name: 'Imported Course',
-      title: 'Imported Course',
+      name,
+      title,
       timezone,
       topics: [{ name: 'Imported', color: 'gray1', description: 'Imported from QTI' }],
       tags: [{ name: 'imported', color: 'gray1', description: 'Imported from QTI' }],

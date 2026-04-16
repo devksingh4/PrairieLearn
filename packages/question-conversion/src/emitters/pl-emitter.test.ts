@@ -887,5 +887,13 @@ describe('PLEmitter', () => {
       assert.equal(zoneQs[0].id, result.questions[0].directoryName);
       assert.equal(zoneQs[0].autoPoints, 7);
     });
+
+    it('emits no zones when all questions fail in single-zone fallback', () => {
+      const bad1 = makeBadQuestion({ sourceId: 'bad-q1' });
+      const bad2 = makeBadQuestion({ sourceId: 'bad-q2' });
+      const result = emitter.emit(makeAssessment([bad1, bad2]));
+      assert.equal(result.questions.length, 0);
+      assert.equal(result.assessment.infoJson.zones.length, 0);
+    });
   });
 });

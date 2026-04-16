@@ -92,7 +92,9 @@ export class PLEmitter implements OutputEmitter {
             : { autoPoints: qIr?.points }),
         };
       });
-      zones.push({ title: 'Questions', questions: zoneQuestions });
+      if (zoneQuestions.length > 0) {
+        zones.push({ title: 'Questions', questions: zoneQuestions });
+      }
     }
 
     const allowAccess = this.buildAllowAccess(meta, assessmentType);
