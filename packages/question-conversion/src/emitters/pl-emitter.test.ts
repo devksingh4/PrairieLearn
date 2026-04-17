@@ -315,11 +315,11 @@ describe('PLEmitter', () => {
     it('maps access code correctly', () => {
       const result = emitter.emit(
         makeAssessment([makeQuestion()], {
-          accessPassword: "test123"
+          accessPassword: 'test123',
         }),
       );
       const rule = result.assessment.infoJson.allowAccess?.[0];
-      assert.equal(rule?.password, "test123");
+      assert.equal(rule?.password, 'test123');
     });
 
     it('falls back to dueDate when lockDate is absent', () => {
@@ -904,6 +904,69 @@ describe('PLEmitter', () => {
       const result = emitter.emit(makeAssessment([bad1, bad2]));
       assert.equal(result.questions.length, 0);
       assert.equal(result.assessment.infoJson.zones.length, 0);
+    });
+  });
+
+  describe('rubric emission', () => {
+    it('emits rubricJson when assessment has a rubric', () => {
+      const assessment: IRAssessment = {
+        ...makeAssessment([makeQuestion()]),
+        rubric: {
+          id: 'rub1',
+          title: 'Essay Rubric',
+          pointsPossible: 10,
+          criteria: [
+            {
+              id: 'crit1',
+              description: 'Quality of argument',
+              longDescription: 'Well-structured argument.',
+              points: 10,
+              ratings: [
+                { id: 'r1', description: 'Full Marks', points: 10 },
+                { id: 'r2', description: 'No Marks', points: 0 },
+              ],
+            },
+          ],
+        },
+      };
+      const result = emitter.emit(assessment);
+      assert.isDefined(result.assessment.rubricJson);
+      const r = result.assessment.rubricJson!;
+      assert.equal(r.title, 'Essay Rubric');
+      assert.equal(r.pointsPossible, 10);
+      assert.equal(r.criteria.length, 1);
+      assert.equal(r.criteria[0].id, 'crit1');
+      assert.equal(r.criteria[0].description, 'Quality of argument');
+      assert.equal(r.criteria[0].longDescription, 'Well-structured argument.');
+      assert.equal(r.criteria[0].ratings.length, 2);
+      assert.equal(r.criteria[0].ratings[0].id, 'r1');
+      assert.equal(r.criteria[0].ratings[0].points, 10);
+    });
+
+    it('leaves rubricJson undefined when assessment has no rubric', () => {
+      const result = emitter.emit(makeAssessment([makeQuestion()]));
+      assert.isUndefined(result.assessment.rubricJson);
+    });
+
+    it('omits longDescription from rubricJson when absent on criterion', () => {
+      const assessment: IRAssessment = {
+        ...makeAssessment([makeQuestion()]),
+        rubric: {
+          id: 'rub1',
+          title: 'Simple Rubric',
+          pointsPossible: 5,
+          criteria: [
+            {
+              id: 'crit1',
+              description: 'Correctness',
+              points: 5,
+              ratings: [{ id: 'r1', description: 'Full Marks', points: 5 }],
+            },
+          ],
+        },
+      };
+      const result = emitter.emit(assessment);
+      assert.isUndefined(result.assessment.rubricJson!.criteria[0].longDescription);
     });
   });
 });

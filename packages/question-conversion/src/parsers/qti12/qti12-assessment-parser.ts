@@ -9,6 +9,9 @@ import type {
   IRFeedback,
   IRParseWarning,
   IRQuestion,
+  IRRubric,
+  IRRubricCriterion,
+  IRRubricRating,
   IRZone,
 } from '../../types/ir.js';
 import type {
@@ -96,19 +99,23 @@ export class QTI12AssessmentParser implements InputParser {
       allowedExtensions,
     });
 
+    const { rubric, warning: rubricWarning } = this.parseRubric(options);
+    if (rubricWarning) parseWarnings.push(rubricWarning);
+
     return {
       sourceId: parsedAssessment.ident,
       title: parsedAssessment.title,
       questions,
       zones: zones.length > 0 ? zones : undefined,
       meta,
+      rubric,
       parseWarnings: parseWarnings.length > 0 ? parseWarnings : undefined,
     };
   }
 
   private buildParsedAssessment(assessment: Record<string, unknown>): QTI12ParsedAssessment {
     const ident = attr(assessment, 'ident');
-    const title = attr(assessment, 'title');
+    const title = unescapeHtml(attr(assessment, 'title'));
     const qtimetadata = assessment['qtimetadata'];
     const metadata = parseMetadata(qtimetadata);
     const items = this.collectItems(assessment).map((item) => this.parseItem(item));
@@ -492,7 +499,7 @@ export class QTI12AssessmentParser implements InputParser {
 
   private parseItem(itemEl: Record<string, unknown>): QTI12ParsedItem {
     const ident = attr(itemEl, 'ident');
-    const title = attr(itemEl, 'title');
+    const title = unescapeHtml(attr(itemEl, 'title'));
 
     // Parse metadata
     const itemMetadata = getNestedValue(itemEl, 'itemmetadata', 'qtimetadata');
@@ -645,6 +652,103 @@ export class QTI12AssessmentParser implements InputParser {
       feedbacks.set(ident, unescapeHtml(text));
     }
     return feedbacks;
+  }
+
+  /**
+   * Extract rubric_identifierref from assessment_meta.xml and resolve it against
+   * rubricsXml (course_settings/rubrics.xml from a full course export).
+   * Returns the resolved rubric, or a warning if the ref is present but unresolvable.
+   */
+  private parseRubric(options?: ParseOptions): {
+    rubric: IRRubric | undefined;
+    warning: IRParseWarning | undefined;
+  } {
+    if (!options?.assessmentMetaXml) return { rubric: undefined, warning: undefined };
+
+    const rubricRef = this.parseRubricRef(options.assessmentMetaXml);
+    if (!rubricRef) return { rubric: undefined, warning: undefined };
+
+    if (options.rubricsXml) {
+      const rubric = this.findRubricById(options.rubricsXml, rubricRef);
+      if (rubric) return { rubric, warning: undefined };
+    }
+
+    return {
+      rubric: undefined,
+      warning: {
+        questionId: rubricRef,
+        message: `Rubric "${rubricRef}" referenced in assessment metadata cannot be resolved — rubric definitions are not included in QTI quiz exports. Re-export as a full course export (which includes course_settings/rubrics.xml) to include rubric data.`,
+      },
+    };
+  }
+
+  /** Extract rubric_identifierref from Canvas assessment_meta.xml, if present. */
+  private parseRubricRef(assessmentMetaXml: string): string | undefined {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = parseXml(assessmentMetaXml);
+    } catch {
+      return undefined;
+    }
+    const quiz = (parsed['quiz'] ?? parsed) as Record<string, unknown>;
+    const assignment = quiz['assignment'] as Record<string, unknown> | undefined;
+    if (!assignment) return undefined;
+    const ref = textContent(assignment['rubric_identifierref']).trim();
+    return ref || undefined;
+  }
+
+  /** Parse course_settings/rubrics.xml and find the rubric with the given identifier. */
+  private findRubricById(rubricsXml: string, id: string): IRRubric | undefined {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = parseXml(rubricsXml);
+    } catch {
+      return undefined;
+    }
+    const root = (parsed['rubrics'] ?? parsed) as Record<string, unknown>;
+    const rubricEls = ensureArray(root['rubric'] as unknown);
+
+    for (const rubricEl of rubricEls) {
+      if (rubricEl == null || typeof rubricEl !== 'object') continue;
+      const rubricRec = rubricEl as Record<string, unknown>;
+      if (attr(rubricRec, 'identifier') !== id) continue;
+
+      const title = textContent(rubricRec['title']);
+      const pointsPossible = Number.parseFloat(textContent(rubricRec['points_possible']));
+      const criteriaEl = rubricRec['criteria'] as Record<string, unknown> | undefined;
+      const criterionEls = ensureArray(criteriaEl?.['criterion'] as unknown);
+
+      const criteria: IRRubricCriterion[] = criterionEls
+        .filter((c): c is Record<string, unknown> => c != null && typeof c === 'object')
+        .map((c) => {
+          const ratingsEl = c['ratings'] as Record<string, unknown> | undefined;
+          const ratingEls = ensureArray(ratingsEl?.['rating'] as unknown);
+          const ratings: IRRubricRating[] = ratingEls
+            .filter((r): r is Record<string, unknown> => r != null && typeof r === 'object')
+            .map((r) => ({
+              id: textContent(r['id']),
+              description: textContent(r['description']),
+              points: Number.parseFloat(textContent(r['points'])) || 0,
+            }));
+
+          const longDesc = textContent(c['long_description']).trim();
+          return {
+            id: textContent(c['criterion_id']),
+            description: textContent(c['description']),
+            ...(longDesc ? { longDescription: longDesc } : {}),
+            points: Number.parseFloat(textContent(c['points'])) || 0,
+            ratings,
+          };
+        });
+
+      return {
+        id,
+        title,
+        pointsPossible: Number.isNaN(pointsPossible) ? 0 : pointsPossible,
+        criteria,
+      };
+    }
+    return undefined;
   }
 
   private transformItem(

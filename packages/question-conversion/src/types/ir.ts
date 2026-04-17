@@ -55,6 +55,30 @@ export interface IROrderItem {
   html: string;
 }
 
+/** A single rating level within a rubric criterion. */
+export interface IRRubricRating {
+  id: string;
+  description: string;
+  points: number;
+}
+
+/** A single criterion in a rubric. */
+export interface IRRubricCriterion {
+  id: string;
+  description: string;
+  longDescription?: string;
+  points: number;
+  ratings: IRRubricRating[];
+}
+
+/** An assessment-level rubric (from Canvas course_settings/rubrics.xml). */
+export interface IRRubric {
+  id: string;
+  title: string;
+  pointsPossible: number;
+  criteria: IRRubricCriterion[];
+}
+
 /** Feedback attached to a question. */
 export interface IRFeedback {
   correct?: string;
@@ -173,6 +197,8 @@ export interface IRAssessment {
   zones?: IRZone[];
   /** Assessment-level metadata. */
   meta?: IRAssessmentMeta;
+  /** Assessment-level rubric (resolved from course_settings/rubrics.xml when provided). */
+  rubric?: IRRubric;
   /** Warnings produced during parsing (e.g., unsupported question types). */
   parseWarnings?: IRParseWarning[];
 }

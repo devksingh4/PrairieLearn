@@ -21,6 +21,13 @@ export interface ParseOptions {
    * Defaults to "UTC" if not provided.
    */
   timezone?: string;
+  /**
+   * Raw XML content of the Canvas course_settings/rubrics.xml file (from a full course export).
+   * When provided, the parser resolves any rubric_identifierref from assessment_meta.xml into
+   * a structured IRRubric on the returned IRAssessment.
+   * Without this, a rubric reference in the metadata emits a parse warning instead.
+   */
+  rubricsXml?: string;
 }
 
 /** Interface for format-specific input parsers. */

@@ -87,8 +87,20 @@ program
           process.exit(1);
         }
 
+        // Try to read rubrics from course_settings/rubrics.xml (only present in full course exports).
+        let rubricsXml: string | undefined;
+        try {
+          rubricsXml = await readFile(
+            path.join(resolvedInput, 'course_settings', 'rubrics.xml'),
+            'utf-8',
+          );
+        } catch {
+          // Not present in quiz-only exports — that's fine; parser will warn per-assessment.
+          logger.debug('Could not find rubrics.xml for course.');
+        }
+
         for (const entry of entries) {
-          await convertFile(entry, courseDir, timezone, options);
+          await convertFile(entry, courseDir, timezone, options, rubricsXml);
         }
       } else {
         await convertFile(
@@ -176,6 +188,7 @@ async function convertFile(
   courseDir: string,
   timezone: string,
   options: { courseInstance: string; topic?: string; tags: string[]; overwrite?: boolean },
+  rubricsXml?: string,
 ): Promise<void> {
   const xmlContent = await readFile(entry.qtiPath, 'utf-8');
   const webResourcesDir = path.join(entry.assessmentDir, '..', 'web_resources');
@@ -189,7 +202,7 @@ async function convertFile(
     // Not present — that's fine
   }
 
-  const baseOptions = { basePath: entry.assessmentDir, assessmentMetaXml, timezone };
+  const baseOptions = { basePath: entry.assessmentDir, assessmentMetaXml, timezone, rubricsXml };
 
   // First pass to get the assessment title for building paths
   const preview = convert(xmlContent, baseOptions);
@@ -252,6 +265,13 @@ async function convertFile(
     path.join(assessmentsDir, 'infoAssessment.json'),
     JSON.stringify(result.assessment.infoJson, null, 2) + '\n',
   );
+
+  if (result.assessment.rubricJson) {
+    await writeFile(
+      path.join(assessmentsDir, 'rubric.json'),
+      JSON.stringify(result.assessment.rubricJson, null, 2) + '\n',
+    );
+  }
 
   for (const w of result.warnings) {
     logger.warn(`Warning [${w.questionId}]: ${w.message}`);

@@ -7,6 +7,7 @@ import type {
   IRDropdownBlank,
   IRQuestion,
   IRQuestionBody,
+  IRRubric,
   IRZone,
 } from '../types/ir.js';
 import type {
@@ -17,6 +18,7 @@ import type {
   PLAssessmentZone,
   PLQuestionInfoJson,
   PLQuestionOutput,
+  PLRubricJson,
 } from '../types/pl-output.js';
 import { slugify } from '../utils/slugify.js';
 import { stableUuid } from '../utils/uuid.js';
@@ -120,7 +122,27 @@ export class PLEmitter implements OutputEmitter {
       infoJson.shuffleQuestions = true;
     }
 
-    return { directoryName, infoJson };
+    const rubricJson = assessment.rubric ? this.emitRubric(assessment.rubric) : undefined;
+
+    return { directoryName, infoJson, rubricJson };
+  }
+
+  private emitRubric(rubric: IRRubric): PLRubricJson {
+    return {
+      title: rubric.title,
+      pointsPossible: rubric.pointsPossible,
+      criteria: rubric.criteria.map((c) => ({
+        id: c.id,
+        description: c.description,
+        ...(c.longDescription ? { longDescription: c.longDescription } : {}),
+        points: c.points,
+        ratings: c.ratings.map((r) => ({
+          id: r.id,
+          description: r.description,
+          points: r.points,
+        })),
+      })),
+    };
   }
 
   private buildAllowAccess(

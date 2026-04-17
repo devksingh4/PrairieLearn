@@ -14,6 +14,51 @@ function readFixture(name: string): string {
 const parser = new QTI12AssessmentParser();
 
 describe('QTI12AssessmentParser', () => {
+  describe('HTML entity decoding in titles', () => {
+    it('decodes &amp; in assessment title', () => {
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Essay Question &amp; Textual">
+    <section ident="root_section"/>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      assert.equal(result.title, 'Essay Question & Textual');
+    });
+
+    it('decodes &amp; in item title', () => {
+      const xml = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Quiz">
+    <section ident="root_section">
+      <item ident="q1" title="True &amp; False">
+        <itemmetadata><qtimetadata>
+          <qtimetadatafield><fieldlabel>question_type</fieldlabel><fieldentry>true_false_question</fieldentry></qtimetadatafield>
+        </qtimetadata></itemmetadata>
+        <presentation>
+          <material><mattext texttype="text/html">&lt;p&gt;Pick one.&lt;/p&gt;</mattext></material>
+          <response_lid ident="response1" rcardinality="Single">
+            <render_choice>
+              <response_label ident="t"><material><mattext>True</mattext></material></response_label>
+              <response_label ident="f"><material><mattext>False</mattext></material></response_label>
+            </render_choice>
+          </response_lid>
+        </presentation>
+        <resprocessing>
+          <respcondition continue="No">
+            <conditionvar><varequal respident="response1">t</varequal></conditionvar>
+            <setvar varname="SCORE">100</setvar>
+          </respcondition>
+        </resprocessing>
+      </item>
+    </section>
+  </assessment>
+</questestinterop>`;
+      const result = parser.parse(xml);
+      assert.equal(result.questions[0].title, 'True & False');
+    });
+  });
+
   describe('canParse', () => {
     it('returns true for QTI 1.2 assessment XML', () => {
       assert.isTrue(parser.canParse(readFixture('canvas-mc.xml')));
@@ -791,6 +836,120 @@ describe('QTI12AssessmentParser', () => {
       assert.equal(result.questions.length, 1);
       assert.equal(result.questions[0].sourceId, 'q2');
       assert.equal(result.parseWarnings!.length, 1);
+    });
+  });
+
+  describe('rubric parsing', () => {
+    const BASE_QTI = `<?xml version="1.0"?>
+<questestinterop xmlns="http://www.imsglobal.org/xsd/ims_qtiasiv1p2">
+  <assessment ident="a1" title="Quiz">
+    <section ident="root_section"/>
+  </assessment>
+</questestinterop>`;
+
+    const META_WITH_RUBRIC = `<?xml version="1.0" encoding="UTF-8"?>
+<quiz xmlns="http://canvas.instructure.com/xsd/cccv1p0">
+  <allowed_attempts>1</allowed_attempts>
+  <assignment identifier="asgn1">
+    <rubric_identifierref>rub1</rubric_identifierref>
+    <rubric_use_for_grading>false</rubric_use_for_grading>
+  </assignment>
+</quiz>`;
+
+    const META_WITHOUT_RUBRIC = `<?xml version="1.0" encoding="UTF-8"?>
+<quiz xmlns="http://canvas.instructure.com/xsd/cccv1p0">
+  <allowed_attempts>1</allowed_attempts>
+  <assignment identifier="asgn1"/>
+</quiz>`;
+
+    const RUBRICS_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<rubrics xmlns="http://canvas.instructure.com/xsd/cccv1p0">
+  <rubric identifier="rub1">
+    <title>Essay Rubric</title>
+    <points_possible>10.0</points_possible>
+    <criteria>
+      <criterion>
+        <criterion_id>crit1</criterion_id>
+        <points>10.0</points>
+        <description>Quality of argument</description>
+        <long_description>Student should demonstrate a well-structured argument.</long_description>
+        <ratings>
+          <rating>
+            <id>r1</id>
+            <description>Full Marks</description>
+            <points>10.0</points>
+            <criterion_id>crit1</criterion_id>
+          </rating>
+          <rating>
+            <id>r2</id>
+            <description>No Marks</description>
+            <points>0.0</points>
+            <criterion_id>crit1</criterion_id>
+          </rating>
+        </ratings>
+      </criterion>
+    </criteria>
+  </rubric>
+</rubrics>`;
+
+    it('resolves rubric when rubricsXml is provided and identifier matches', () => {
+      const result = parser.parse(BASE_QTI, {
+        assessmentMetaXml: META_WITH_RUBRIC,
+        rubricsXml: RUBRICS_XML,
+      });
+      assert.isDefined(result.rubric);
+      const r = result.rubric!;
+      assert.equal(r.id, 'rub1');
+      assert.equal(r.title, 'Essay Rubric');
+      assert.equal(r.pointsPossible, 10);
+      assert.equal(r.criteria.length, 1);
+      assert.equal(r.criteria[0].id, 'crit1');
+      assert.equal(r.criteria[0].description, 'Quality of argument');
+      assert.equal(
+        r.criteria[0].longDescription,
+        'Student should demonstrate a well-structured argument.',
+      );
+      assert.equal(r.criteria[0].points, 10);
+      assert.equal(r.criteria[0].ratings.length, 2);
+      assert.equal(r.criteria[0].ratings[0].id, 'r1');
+      assert.equal(r.criteria[0].ratings[0].description, 'Full Marks');
+      assert.equal(r.criteria[0].ratings[0].points, 10);
+      assert.isUndefined(result.parseWarnings);
+    });
+
+    it('emits a warning when rubric_identifierref is present but rubricsXml is not provided', () => {
+      const result = parser.parse(BASE_QTI, { assessmentMetaXml: META_WITH_RUBRIC });
+      assert.isUndefined(result.rubric);
+      assert.isDefined(result.parseWarnings);
+      assert.equal(result.parseWarnings!.length, 1);
+      assert.equal(result.parseWarnings![0].questionId, 'rub1');
+      assert.include(result.parseWarnings![0].message, 'rub1');
+      assert.include(result.parseWarnings![0].message, 'rubrics.xml');
+    });
+
+    it('emits a warning when rubric_identifierref is present but the rubric id is not found in rubricsXml', () => {
+      const rubricsXmlOther = RUBRICS_XML.replace('identifier="rub1"', 'identifier="rub-other"');
+      const result = parser.parse(BASE_QTI, {
+        assessmentMetaXml: META_WITH_RUBRIC,
+        rubricsXml: rubricsXmlOther,
+      });
+      assert.isUndefined(result.rubric);
+      assert.isDefined(result.parseWarnings);
+      assert.equal(result.parseWarnings![0].questionId, 'rub1');
+    });
+
+    it('produces no rubric and no warning when assessment_meta has no rubric_identifierref', () => {
+      const result = parser.parse(BASE_QTI, {
+        assessmentMetaXml: META_WITHOUT_RUBRIC,
+        rubricsXml: RUBRICS_XML,
+      });
+      assert.isUndefined(result.rubric);
+      assert.isUndefined(result.parseWarnings);
+    });
+
+    it('produces no rubric and no warning when no assessmentMetaXml is provided', () => {
+      const result = parser.parse(BASE_QTI);
+      assert.isUndefined(result.rubric);
     });
   });
 
