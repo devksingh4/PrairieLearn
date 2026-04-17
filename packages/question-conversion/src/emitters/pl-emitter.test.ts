@@ -312,6 +312,16 @@ describe('PLEmitter', () => {
       assert.equal(rule?.endDate, '2025-09-05T05:59:59');
     });
 
+    it('maps access code correctly', () => {
+      const result = emitter.emit(
+        makeAssessment([makeQuestion()], {
+          accessPassword: "test123"
+        }),
+      );
+      const rule = result.assessment.infoJson.allowAccess?.[0];
+      assert.equal(rule?.password, "test123");
+    });
+
     it('falls back to dueDate when lockDate is absent', () => {
       const result = emitter.emit(
         makeAssessment([makeQuestion()], { dueDate: '2025-09-04T23:59:59' }),

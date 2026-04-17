@@ -135,6 +135,7 @@ export class PLEmitter implements OutputEmitter {
     }
 
     if (meta?.startDate) primary.startDate = meta.startDate;
+    if (meta?.accessPassword) primary.password = meta.accessPassword;
 
     // Use lockDate (hard close) as endDate; fall back to dueDate
     const endDate = meta?.lockDate ?? meta?.dueDate;

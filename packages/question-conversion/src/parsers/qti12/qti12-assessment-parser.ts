@@ -223,6 +223,10 @@ export class QTI12AssessmentParser implements InputParser {
     const unlockAt = normalizeDate(textContent(quiz['unlock_at']), timezone);
     if (unlockAt) meta.startDate = unlockAt;
 
+    // Quiz password
+    const accessPassword = textContent(quiz['access_code']);
+    if (accessPassword) meta.accessPassword = accessPassword;
+
     // Correct answer visibility
     const showCorrectAnswers = textContent(quiz['show_correct_answers']);
     if (showCorrectAnswers === 'true') {

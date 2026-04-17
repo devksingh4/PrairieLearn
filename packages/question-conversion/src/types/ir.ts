@@ -143,6 +143,8 @@ export interface IRAssessmentMeta {
   lockDate?: string;
   /** Soft due date (due_at). */
   dueDate?: string;
+  /** A password needed to unlock the exam. */
+  accessPassword?: string;
   /** Whether to show correct answers to students after the assessment closes. */
   showCorrectAnswers?: boolean;
   /** Date after which correct answers become visible (ISO 8601). */

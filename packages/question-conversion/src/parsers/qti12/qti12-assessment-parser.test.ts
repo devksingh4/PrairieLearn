@@ -451,6 +451,21 @@ describe('QTI12AssessmentParser', () => {
       assert.equal(m.assessmentType, 'Exam');
     });
 
+    it('parses access_code into meta.accessPassword', () => {
+      const meta = `<?xml version="1.0" encoding="UTF-8"?>
+<quiz xmlns="http://canvas.instructure.com/xsd/cccv1p0">
+  <allowed_attempts>-1</allowed_attempts>
+  <access_code>secret123</access_code>
+</quiz>`;
+      const result = parser.parse(BASE_QTI, { assessmentMetaXml: meta });
+      assert.equal(result.meta!.accessPassword, 'secret123');
+    });
+
+    it('leaves accessPassword undefined when access_code is absent', () => {
+      const result = parser.parse(BASE_QTI, { assessmentMetaXml: HOMEWORK_META });
+      assert.isUndefined(result.meta!.accessPassword);
+    });
+
     it('lockDate takes precedence over dueDate', () => {
       const result = parser.parse(BASE_QTI, { assessmentMetaXml: HOMEWORK_META });
       // lock_at is 2025-09-05, due_at is 2025-09-04 — lockDate should win for endDate

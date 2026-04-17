@@ -55,6 +55,7 @@ export interface PLAllowAccessRule {
   timeLimitMin?: number;
   startDate?: string;
   endDate?: string;
+  password?: string;
   /** Whether students can view the assessment after it closes (default: true). */
   showClosedAssessment?: boolean;
 }

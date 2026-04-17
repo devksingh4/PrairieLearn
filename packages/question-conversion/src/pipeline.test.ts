@@ -68,6 +68,19 @@ describe('convert (integration)', () => {
       );
       assert.isUndefined(q.serverPy);
     });
+
+    it('propagates access_code from assessment_meta.xml into allowAccess password', () => {
+      const xml = readFileSync(path.join(QTI12_FIXTURES, 'canvas-mc.xml'), 'utf-8');
+      const meta = `<?xml version="1.0" encoding="UTF-8"?>
+<quiz xmlns="http://canvas.instructure.com/xsd/cccv1p0">
+  <allowed_attempts>1</allowed_attempts>
+  <access_code>hunter2</access_code>
+</quiz>`;
+      const result = convert(xml, { assessmentMetaXml: meta });
+      const rules = result.assessment.infoJson.allowAccess;
+      assert.isDefined(rules);
+      assert.isTrue(rules!.some((r) => r.password === 'hunter2'));
+    });
   });
 
   describe('error handling', () => {
