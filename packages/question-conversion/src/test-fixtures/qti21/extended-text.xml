@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<assessmentItem xmlns="http://www.imsglobal.org/xsd/imsqti_v2p1"
-  identifier="q-extended-text" title="Essay Question" adaptive="false" timeDependent="false">
-  <responseDeclaration identifier="RESPONSE" cardinality="single" baseType="string"/>
-  <itemBody>
-    <p>Explain the causes of the French Revolution.</p>
-    <extendedTextInteraction responseIdentifier="RESPONSE" expectedLength="500"/>
-  </itemBody>
-</assessmentItem>
